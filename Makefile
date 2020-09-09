@@ -1,5 +1,3 @@
-# makefile for rc_mpu, builds example programs
-
 # directories
 SRCDIR		:= src
 BINDIR		:= bin
