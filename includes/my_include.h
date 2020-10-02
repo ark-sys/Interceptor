@@ -5,6 +5,8 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/user.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -16,22 +18,20 @@
 #include <stdbool.h>
 
 #define PID_SIZE 16
+#define FUNCTION_SIZE 64
 #define POS_SIZE 64
+#define COMMAND_SIZE 64
+#define LINE_SIZE 128
 
 struct program_vars_t{
   pid_t traced_program_id;
-  char * traced_pid_string;
-  int traced_pid_string_s;
+  char traced_program_name[POS_SIZE];
+  char traced_function_name[FUNCTION_SIZE];
 
-  char * traced_program_name;
-  int program_name_s;
   unsigned long program_main_address;
-
-  char * traced_function_name;
-  int traced_function_s;
   unsigned long function_address; // main_address + function_offset
 
-
+  struct user_regs_struct registers;
 };
 
 typedef enum _ErrorCode_t {
@@ -42,7 +42,9 @@ typedef enum _ErrorCode_t {
     FILE_NOT_FOUND,
     FUNCTION_NOT_FOUND,
     COMMAND_NOT_FOUND,
-    INVALID_ARGUMENT
+    INVALID_ARGUMENT,
+    PROGRAM_NOT_RUNNING
+
 } ErrorCode;
 
 static inline const char * ErrorCodetoString(ErrorCode errCode)
@@ -56,7 +58,8 @@ static inline const char * ErrorCodetoString(ErrorCode errCode)
     "File not found",
     "Function not found",
     "Command not found",
-    "Invalid argument"
+    "Invalid argument",
+    "Program not running"
   };
   return ErrorCodeString[errCode];
 }
