@@ -20,8 +20,8 @@
 #define PID_SIZE 16
 #define FUNCTION_SIZE 64
 #define POS_SIZE 64
-#define COMMAND_SIZE 64
 #define LINE_SIZE 128
+#define COMMAND_SIZE 256
 
 struct program_vars_t{
   pid_t traced_program_id;

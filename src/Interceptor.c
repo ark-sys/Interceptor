@@ -39,11 +39,8 @@ static ErrorCode get_pid(const char * argument_1)
               if(program_vars.traced_program_id == 0){
                   errCode = PROGRAM_NOT_RUNNING;
               }
-
               pclose(traced_program_fd);
-
           }
-
   }else{
       print_usage();
       errCode = FILE_NOT_FOUND;
@@ -92,11 +89,10 @@ static ErrorCode get_function_address(const char * argument_2)
 static ErrorCode set_breakpoint(void){
     ErrorCode errorCode = NO_ERROR;
     char path_to_mem[128];
+    char backup_instruction[1];
 
-    char backup_instruction[16];
-
+    int wait_status;
     FILE * mem_file_fd;
-    struct user_regs_struct regs;
 
     fprintf(stdout,"%s\n", "Setting breakpoint...");
 
@@ -109,33 +105,30 @@ static ErrorCode set_breakpoint(void){
         if (fseek(mem_file_fd, (long)program_vars.function_address, SEEK_SET) != 0){
             errorCode = ERROR;
         } else {
-            fread(backup_instruction, sizeof(unsigned char), 1, mem_file_fd);
+            fread(backup_instruction, 1, 1, mem_file_fd);
+            fprintf(stdout, "Current instruction: %s\n", backup_instruction);
             fseek(mem_file_fd, (long)program_vars.function_address, SEEK_SET);
             fwrite(&trap_instruction, 1,1, mem_file_fd);
+            fprintf(stdout, "Written instruction: %d\n", trap_instruction);
         }
 
         fclose(mem_file_fd);
     }
 
+//    printf("Process stopped.\nPress <ENTER> to continue.");
+//    getchar();
 
-    printf("Process stopped.\nPress <ENTER> to continue.");
-    getchar();
+    if(ptrace(PTRACE_CONT, program_vars.traced_program_id, NULL, NULL) < 0){
+        fprintf(stdout, "PTRACE_CONT failed\n");
+    }
+    if(program_vars.traced_program_id != waitpid(program_vars.traced_program_id, &wait_status,WCONTINUED)){
+        fprintf(stdout, "Error at wait_pid\n");
+    }
 
-    ptrace(PTRACE_CONT, program_vars.traced_program_id, NULL, NULL);
+
 
     return errorCode;
 }
-static ErrorCode add_data(void){
-    ErrorCode errCode = NO_ERROR;
-
-
-
-    return errCode;
-}
-
-
-
-
 
 int main(int argc, char *argv[]) {
   // printf("\e[1;1H\e[2J");
@@ -176,6 +169,7 @@ int main(int argc, char *argv[]) {
 
 
     errCode = set_breakpoint();
+
 
 
     ptrace(PTRACE_DETACH, program_vars.traced_program_id, NULL, NULL);
