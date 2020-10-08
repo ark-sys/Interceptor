@@ -16,7 +16,6 @@ static void func2(int * i){
     printf("%d\n", *i);
 }
 
-
 int main(void) {
     int i = 0;
     while(1){

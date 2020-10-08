@@ -71,9 +71,8 @@ static ErrorCode get_function_address(const char * argument_2)
     fprintf(stderr, "%s\n", "Failed to open binary dump.");
     errCode = NULL_POINTER;
   } else {
-
       fgets(readline, LINE_SIZE, binary_dump_fd);
-      if(atol(readline) == 0){
+      if(strtol(readline, NULL, 16) == 0){
         errCode = FUNCTION_NOT_FOUND;
       } else {
         /* Get a correct representation of the address from char* to unsigned long*/
@@ -90,7 +89,6 @@ static ErrorCode get_function_address(const char * argument_2)
 static ErrorCode set_breakpoint(void){
     ErrorCode errorCode = NO_ERROR;
     char path_to_mem[128];
-   // char backup_instruction;
 
     struct user_regs_struct regs;
 
@@ -98,20 +96,6 @@ static ErrorCode set_breakpoint(void){
     FILE * mem_file_fd;
 
     fprintf(stdout,"%s\n", "Setting breakpoint...");
-
-    /*ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs);
-
-    fprintf(stdout, "Current RIP = 0x%016llx\n", regs.rip);
-
-    unsigned data = ptrace(PTRACE_PEEKTEXT, program_vars.traced_program_id, (void *)program_vars.function_address, 0);
-    fprintf(stdout, "Original data at 0x%016lx: 0x%016x\!n", program_vars.function_address, data);
-
-    long data_with_trap = (data & 0xFFFFFFFFFFFFFF00) | 0xCC;
-    ptrace(PTRACE_POKETEXT, program_vars.traced_program_id, (void*)program_vars.function_address, (void*)data_with_trap);
-
-    long readback_data = ptrace(PTRACE_PEEKTEXT, program_vars.traced_program_id, (void*)program_vars.function_address, 0);
-    fprintf(stdout,"After trap,set breakpoint, data at 0x%016lx: 0x%016lx\n", program_vars.function_address, readback_data);
-*/
 
     snprintf(path_to_mem, 128, "/proc/%d/mem", program_vars.traced_program_id);
     mem_file_fd = fopen(path_to_mem, "r+");
@@ -129,9 +113,6 @@ static ErrorCode set_breakpoint(void){
         }
         fclose(mem_file_fd);
     }
-
-//    printf("Process stopped.\nPress <ENTER> to continue.");
-//    getchar();
 
     if(ptrace(PTRACE_CONT, program_vars.traced_program_id, NULL, NULL) < 0){
         fprintf(stdout, "PTRACE_CONT failed\n");
@@ -151,8 +132,6 @@ static ErrorCode set_breakpoint(void){
     /* Check if we correctly stepped back by one instruction */
     ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs);
     fprintf(stdout, "RIP after breakpoint = 0x%016llx\n", regs.rip);
-
-
     return errorCode;
 }
 
