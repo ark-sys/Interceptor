@@ -63,7 +63,7 @@ static ErrorCode get_function_address(const char * argument_2)
 
    /* Prepare the command that has to be called in order to parse the binary */
    /* Command alias in bash : objdump -t <program_name> | grep <function_name> | cut -d " " -f1 */
-  snprintf(command, COMMAND_SIZE, "objdump -t %s | grep %s$ | cut -d \" \" -f1", program_vars.traced_program_name, program_vars.traced_function_name);
+  snprintf(command, COMMAND_SIZE, "objdump -t %s | grep %s | cut -d \" \" -f1", program_vars.traced_program_name, program_vars.traced_function_name);
 
   binary_dump_fd = popen(command, "r");
   if(binary_dump_fd == NULL)
@@ -76,7 +76,8 @@ static ErrorCode get_function_address(const char * argument_2)
       if(atol(readline) == 0){
         errCode = FUNCTION_NOT_FOUND;
       } else {
-        program_vars.function_address = atol(readline);
+        /* Get a correct representation of the address from char* to unsigned long*/
+        program_vars.function_address = (unsigned long)strtol(readline, NULL, 16);
       }
 
     pclose(binary_dump_fd);
@@ -89,15 +90,30 @@ static ErrorCode get_function_address(const char * argument_2)
 static ErrorCode set_breakpoint(void){
     ErrorCode errorCode = NO_ERROR;
     char path_to_mem[128];
-    char backup_instruction[1];
+   // char backup_instruction;
+
+    struct user_regs_struct regs;
 
     int wait_status;
     FILE * mem_file_fd;
 
     fprintf(stdout,"%s\n", "Setting breakpoint...");
 
-    snprintf(path_to_mem, 128, "/proc/%d/mem", program_vars.traced_program_id);
+    /*ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs);
 
+    fprintf(stdout, "Current RIP = 0x%016llx\n", regs.rip);
+
+    unsigned data = ptrace(PTRACE_PEEKTEXT, program_vars.traced_program_id, (void *)program_vars.function_address, 0);
+    fprintf(stdout, "Original data at 0x%016lx: 0x%016x\!n", program_vars.function_address, data);
+
+    long data_with_trap = (data & 0xFFFFFFFFFFFFFF00) | 0xCC;
+    ptrace(PTRACE_POKETEXT, program_vars.traced_program_id, (void*)program_vars.function_address, (void*)data_with_trap);
+
+    long readback_data = ptrace(PTRACE_PEEKTEXT, program_vars.traced_program_id, (void*)program_vars.function_address, 0);
+    fprintf(stdout,"After trap,set breakpoint, data at 0x%016lx: 0x%016lx\n", program_vars.function_address, readback_data);
+*/
+
+    snprintf(path_to_mem, 128, "/proc/%d/mem", program_vars.traced_program_id);
     mem_file_fd = fopen(path_to_mem, "r+");
     if(mem_file_fd == NULL){
         errorCode = NULL_POINTER;
@@ -105,13 +121,12 @@ static ErrorCode set_breakpoint(void){
         if (fseek(mem_file_fd, (long)program_vars.function_address, SEEK_SET) != 0){
             errorCode = ERROR;
         } else {
-            fread(backup_instruction, 1, 1, mem_file_fd);
-            fprintf(stdout, "Current instruction: %s\n", backup_instruction);
-            fseek(mem_file_fd, (long)program_vars.function_address, SEEK_SET);
-            fwrite(&trap_instruction, 1,1, mem_file_fd);
-            fprintf(stdout, "Written instruction: %d\n", trap_instruction);
+            if(fwrite(&trap_instruction, 1,1, mem_file_fd) == 0){
+                errorCode = ERROR;
+            } else {
+                fprintf(stdout, "Written instruction: %c at address %ld\n", trap_instruction, (long)program_vars.function_address);
+            }
         }
-
         fclose(mem_file_fd);
     }
 
@@ -122,9 +137,20 @@ static ErrorCode set_breakpoint(void){
         fprintf(stdout, "PTRACE_CONT failed\n");
     }
     if(program_vars.traced_program_id != waitpid(program_vars.traced_program_id, &wait_status,WCONTINUED)){
-        fprintf(stdout, "Error at wait_pid\n");
+        fprintf(stdout, "Error waitpid at line %d\n", __LINE__);
     }
 
+    /* Get current content from instruction pointer register */
+    ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs);
+    fprintf(stdout, "RIP before breakpoint = 0x%016llx\n", regs.rip);
+
+    /* Set current instruction as the beginning of the traced function */
+    regs.rip = program_vars.function_address;
+    ptrace(PTRACE_SETREGS, program_vars.traced_program_id, NULL, &regs);
+
+    /* Check if we correctly stepped back by one instruction */
+    ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs);
+    fprintf(stdout, "RIP after breakpoint = 0x%016llx\n", regs.rip);
 
 
     return errorCode;
@@ -164,14 +190,20 @@ int main(int argc, char *argv[]) {
    */
 
     int wait_status;
-    ptrace(PTRACE_ATTACH, program_vars.traced_program_id, NULL, NULL);
-    waitpid(program_vars.traced_program_id, &wait_status,0);
 
+    if(ptrace(PTRACE_ATTACH, program_vars.traced_program_id, NULL, NULL)<0){
+        fprintf(stderr, "Error during PTRACE_ATTACH at line %d\n", __LINE__);
+    }
+
+    if (program_vars.traced_program_id != waitpid(program_vars.traced_program_id, &wait_status,0)){
+        fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
+    }
 
     errCode = set_breakpoint();
 
 
-
-    ptrace(PTRACE_DETACH, program_vars.traced_program_id, NULL, NULL);
+    if(ptrace(PTRACE_DETACH, program_vars.traced_program_id, NULL, NULL)<0){
+        fprintf(stderr, "Error during PTRACE_DETACH at line %d\n", __LINE__);
+    }
     return errCode;
 }
