@@ -21,6 +21,9 @@ CFLAGS		:= -O0 -lm -g -pthread -I$(INCLUDEDIR)
 # commands
 RM	:= rm -rf
 
+#todo add "make run"
+#todo spawn a terminal (xterm or others) and auto execute program with make run
+
 all : $(TARGETS)
 
 debug :

@@ -79,21 +79,20 @@ static ErrorCode get_function_address(const char * argument_2)
   snprintf(program_vars.traced_function_name, FUNCTION_SIZE, "%s", argument_2);
 
    /* Prepare the command that has to be called in order to parse the binary */
-   /* Command alias in bash : objdump -t <program_name> | grep <function_name> | cut -d " " -f1 */
-  snprintf(command, COMMAND_SIZE, "objdump -t %s | grep %s | cut -d \" \" -f1", program_vars.traced_program_name, program_vars.traced_function_name);
+   /* Command alias in bash : objdump -t <program_name> | grep -w <function_name> | cut -d " " -f1 */
+  snprintf(command, COMMAND_SIZE, "objdump -t %s | grep -w %s | cut -d \" \" -f1", program_vars.traced_program_name, program_vars.traced_function_name);
 
   binary_dump_fd = popen(command, "r");
   if(binary_dump_fd == NULL)
   {
     fprintf(stderr, "%s\n", "Failed to open binary dump.");
     errCode = NULL_POINTER;
-
   } else {
+
       /* Check if we are correctly reading lines */
       if (fgets(readline, LINE_SIZE, binary_dump_fd) == NULL)
       {
           errCode = NULL_POINTER;
-
       } else {
 
           /* Check if the content that we got has a good format (like a function's address)*/
@@ -112,7 +111,14 @@ static ErrorCode get_function_address(const char * argument_2)
   return errCode;
 }
 
-
+static ErrorCode get_registers_backup(void){
+    ErrorCode errorCode = NO_ERROR;
+    if(ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &program_vars.registers) < 0){
+        fprintf(stderr,"%s\n", "Failed to save current registers state.");
+        errorCode = ERROR;
+    }
+    return errorCode;
+}
 static ErrorCode set_breakpoint(void){
     ErrorCode errorCode = NO_ERROR;
     char path_to_mem[128];
@@ -151,7 +157,7 @@ static ErrorCode set_breakpoint(void){
 
             /* Restart the process and wait that it continues */
             if(ptrace(PTRACE_CONT, program_vars.traced_program_id, NULL, NULL) < 0){
-                fprintf(stderr, "PTRACE_CONT failed\n");
+                fprintf(stderr, "%s\n","Failed to resume execution of program.");
                 errorCode = ERROR;
             } else {
                 /* Check that the process actually changed its state */
@@ -165,8 +171,8 @@ static ErrorCode set_breakpoint(void){
                         fprintf(stderr, "Failed to get registers for PID %d", program_vars.traced_program_id);
                         errorCode = ERROR;
                     }else{
-                        fprintf(stdout, "RIP before breakpoint = 0x%016llx\n", regs.rip);
 
+                        fprintf(stdout, "RIP before breakpoint = 0x%016llx\n", regs.rip);
                         /* Set current instruction as the beginning of the traced function */
                         regs.rip = program_vars.function_address;
                         if (ptrace(PTRACE_SETREGS, program_vars.traced_program_id, NULL, &regs) < 0){
@@ -197,6 +203,52 @@ static ErrorCode set_breakpoint(void){
     return errorCode;
 }
 
+static ErrorCode call_function(const unsigned long function_to_call, const int param){
+    ErrorCode errorCode = NO_ERROR;
+    struct user_regs_struct regs;
+    int wait_status;
+
+    errorCode = get_registers_backup();
+    if (errorCode != NO_ERROR){
+        fprintf(stderr,"%s\n", "Failed to get registers backup.");
+    } else {
+        errorCode = set_breakpoint();
+        if (errorCode != NO_ERROR){
+            fprintf(stderr, "%s\n", "Failed to set breakpoint.");
+        } else {
+            fprintf(stdout, "%s %lu\n", "Calling function at address", function_to_call);
+            /* Get current register state for the traced program */
+            if(ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs) < 0){
+                errorCode = ERROR;
+            } else {
+                /* */
+                regs.rip = program_vars.function_address;
+                regs.rax = function_to_call;
+                regs.rdi = (unsigned long long) param;
+
+                if(ptrace(PTRACE_SETREGS, program_vars.traced_program_id, NULL, &regs) < 0){
+                    fprintf(stderr, "%s\n", "Failed to set new registers");
+                    errorCode = ERROR;
+                } else {
+                    if(ptrace(PTRACE_CONT, program_vars.traced_program_id, NULL, NULL) < 0){
+                        fprintf(stderr, "%s\n","Failed to resume execution of program.");
+                        errorCode = ERROR;
+                    } else {
+                        if(program_vars.traced_program_id != waitpid(program_vars.traced_program_id,&wait_status, WCONTINUED)){
+                            fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
+                            errorCode = ERROR;
+                        }
+                    }
+
+                }
+
+            }
+        }
+
+    }
+
+    return errorCode;
+}
 int main(int argc, char *argv[]) {
   // printf("\e[1;1H\e[2J");
   if(argc != 3){
@@ -240,7 +292,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
     }
 
-    errCode = set_breakpoint();
+    errCode = call_function(4195864, 9);
 
 
     if(ptrace(PTRACE_DETACH, program_vars.traced_program_id, NULL, NULL) < 0){
