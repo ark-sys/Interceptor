@@ -8,12 +8,14 @@ static void func1(void){
     write(1, cool_message, 13);
 }*/
 
-static void func1(int i){
+static int func1(int i){
     printf("%d\n", i);
+    return i;
 }
 
-static void func2(int * i){
-    printf("%d\n", *i);
+static int func2(int * i){
+    *i = 300000;
+    return *i;
 }
 
 int main(void) {

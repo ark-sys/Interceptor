@@ -1,4 +1,5 @@
 #include "../includes/my_include.h"
+
 /* Structure needed to store variables used in different sections of the program */
 struct program_vars_t program_vars;
 
@@ -6,7 +7,7 @@ struct program_vars_t program_vars;
 static const unsigned char trap_instruction = 0xCC;
 
 /* Indirect call instruction */
-static const unsigned char * indirect_call = {0xFF, 0xD0};
+static const unsigned char indirect_call[3] = {0xFF, 0xD0, trap_instruction};
 
 static void print_usage(void){
   fprintf(stderr, "%s\n", "Usage : ./Interceptor [program_name] [function_name]");
@@ -66,8 +67,8 @@ static ErrorCode get_pid(const char * argument_1)
   return errCode;
 }
 
-/* Return the function position in the program binary*/
-static ErrorCode get_function_address(const char * argument_2)
+/* Parses the traced program memory file and returns the address of function passed as argument; return value is the second argument */
+static ErrorCode get_function_address(const char * function_name, unsigned long * function_address)
 {
   ErrorCode errCode = NO_ERROR;
   FILE * binary_dump_fd;
@@ -75,12 +76,12 @@ static ErrorCode get_function_address(const char * argument_2)
   char command[COMMAND_SIZE];
   char readline[LINE_SIZE];
 
-  /* Store the function name for later use */
-  snprintf(program_vars.traced_function_name, FUNCTION_SIZE, "%s", argument_2);
+//  /* Store the function name for later use */
+//  snprintf(program_vars.traced_function_name, FUNCTION_SIZE, "%s", argument_2);
 
    /* Prepare the command that has to be called in order to parse the binary */
    /* Command alias in bash : objdump -t <program_name> | grep -w <function_name> | cut -d " " -f1 */
-  snprintf(command, COMMAND_SIZE, "objdump -t %s | grep -w %s | cut -d \" \" -f1", program_vars.traced_program_name, program_vars.traced_function_name);
+  snprintf(command, COMMAND_SIZE, "objdump -t %s | grep -w %s | cut -d \" \" -f1", program_vars.traced_program_name, function_name);
 
   binary_dump_fd = popen(command, "r");
   if(binary_dump_fd == NULL)
@@ -101,7 +102,7 @@ static ErrorCode get_function_address(const char * argument_2)
 
           } else {
               /* Get a correct representation of the address from char* to unsigned long*/
-              program_vars.function_address = (unsigned long)strtol(readline, NULL, 16);
+              *function_address = (unsigned long)strtol(readline, NULL, 16);
           }
       }
 
@@ -270,12 +271,12 @@ int main(int argc, char *argv[]) {
   }
 
   /* Look for the address of the target function in the binary dump */
-  errCode = get_function_address(argv[2]);
+  errCode = get_function_address(argv[2], &program_vars.function_address);
   if(errCode != NO_ERROR){
     fprintf(stderr, "Error! line:%d:%s\n",__LINE__,ErrorCodetoString(errCode));
     return errCode;
   }else{
-    fprintf(stdout, "Tracing function <%s> at address: %lu\n",program_vars.traced_function_name, program_vars.function_address);
+    fprintf(stdout, "Tracing function <%s> at address: %lu\n",argv[2], program_vars.function_address);
   }
 
   /*
@@ -292,8 +293,16 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
     }
 
-    errCode = call_function(4195864, 9);
+    unsigned long addr_func_to_call;
+    errCode = get_function_address("func2", &addr_func_to_call);
+    if (errCode != NO_ERROR){
+        fprintf(stderr, "%s\n","Failed to get address for func2");
+    }
 
+    errCode = call_function(addr_func_to_call, 1000000);
+    if (errCode != NO_ERROR){
+        fprintf(stderr, "%s\n","Failed to call func2");
+    }
 
     if(ptrace(PTRACE_DETACH, program_vars.traced_program_id, NULL, NULL) < 0){
         fprintf(stderr, "Error during PTRACE_DETACH at line %d\n", __LINE__);
