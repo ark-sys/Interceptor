@@ -5,6 +5,9 @@ struct program_vars_t program_vars;
 /* Byte code instruction of 'trap' */
 static const unsigned char trap_instruction = 0xCC;
 
+/* Indirect call instruction */
+static const unsigned char * indirect_call = {0xFF, 0xD0};
+
 static void print_usage(void){
   fprintf(stderr, "%s\n", "Usage : ./Interceptor [program_name] [function_name]");
 }
@@ -19,29 +22,42 @@ static ErrorCode get_pid(const char * argument_1)
   char command[COMMAND_SIZE];
   char pid_buffer[PID_SIZE];
 
+  /* Check if the file exists and is accessible */
   if (access(argument_1, F_OK) != -1){
       fprintf(stdout, "Opening binary: <%s>\n", argument_1);
 
+      /* Store the program name for later use */
       snprintf(program_vars.traced_program_name, POS_SIZE, "%s", argument_1);
 
       /* pgrep <program_name> */
       snprintf(command, COMMAND_SIZE, "pgrep %s", argument_1);
-
       traced_program_fd = popen(command, "r");
 
+      /* Check the command execution status */
           if(traced_program_fd == NULL)
           {
-              errCode = FILE_NOT_FOUND;
+              errCode = NULL_POINTER;
 
           } else {
-              fgets(pid_buffer, PID_SIZE, traced_program_fd);
-              program_vars.traced_program_id = atol(pid_buffer);
-              if(program_vars.traced_program_id == 0){
-                  errCode = PROGRAM_NOT_RUNNING;
+
+              /* Read the line and check that we are actually reading characters */
+              if (fgets(pid_buffer, PID_SIZE, traced_program_fd) == NULL)
+              {
+                  errCode = NULL_POINTER;
+
+              } else {
+                  /* Convert PID number from char* to int. If the conversion fails, 0 is returned */
+                  program_vars.traced_program_id = atoi(pid_buffer);
+                  if(program_vars.traced_program_id == 0){
+                      errCode = PROGRAM_NOT_RUNNING;
+                  }
               }
+
               pclose(traced_program_fd);
           }
-  }else{
+  } else {
+
+      /* On access failure, print help */
       print_usage();
       errCode = FILE_NOT_FOUND;
   }
@@ -59,6 +75,7 @@ static ErrorCode get_function_address(const char * argument_2)
   char command[COMMAND_SIZE];
   char readline[LINE_SIZE];
 
+  /* Store the function name for later use */
   snprintf(program_vars.traced_function_name, FUNCTION_SIZE, "%s", argument_2);
 
    /* Prepare the command that has to be called in order to parse the binary */
@@ -70,13 +87,23 @@ static ErrorCode get_function_address(const char * argument_2)
   {
     fprintf(stderr, "%s\n", "Failed to open binary dump.");
     errCode = NULL_POINTER;
+
   } else {
-      fgets(readline, LINE_SIZE, binary_dump_fd);
-      if(strtol(readline, NULL, 16) == 0){
-        errCode = FUNCTION_NOT_FOUND;
+      /* Check if we are correctly reading lines */
+      if (fgets(readline, LINE_SIZE, binary_dump_fd) == NULL)
+      {
+          errCode = NULL_POINTER;
+
       } else {
-        /* Get a correct representation of the address from char* to unsigned long*/
-        program_vars.function_address = (unsigned long)strtol(readline, NULL, 16);
+
+          /* Check if the content that we got has a good format (like a function's address)*/
+          if(strtol(readline, NULL, 16) == 0){
+              errCode = FUNCTION_NOT_FOUND;
+
+          } else {
+              /* Get a correct representation of the address from char* to unsigned long*/
+              program_vars.function_address = (unsigned long)strtol(readline, NULL, 16);
+          }
       }
 
     pclose(binary_dump_fd);
@@ -97,41 +124,76 @@ static ErrorCode set_breakpoint(void){
 
     fprintf(stdout,"%s\n", "Setting breakpoint...");
 
+    /* Prepare path to memory file and open it with some error checking */
     snprintf(path_to_mem, 128, "/proc/%d/mem", program_vars.traced_program_id);
     mem_file_fd = fopen(path_to_mem, "r+");
+
     if(mem_file_fd == NULL){
         errorCode = NULL_POINTER;
     } else {
+        /* Read file at index "program_vars.function_address", so we can write at the first instruction of the traced function */
         if (fseek(mem_file_fd, (long)program_vars.function_address, SEEK_SET) != 0){
             errorCode = ERROR;
         } else {
+            /* Write the trap instruction at the beginning of the trace function */
             if(fwrite(&trap_instruction, 1,1, mem_file_fd) == 0){
                 errorCode = ERROR;
             } else {
                 fprintf(stdout, "Written instruction: %c at address %ld\n", trap_instruction, (long)program_vars.function_address);
+
             }
         }
+        /* If everything went fine, close the file to apply changes */
         fclose(mem_file_fd);
-    }
 
-    if(ptrace(PTRACE_CONT, program_vars.traced_program_id, NULL, NULL) < 0){
-        fprintf(stdout, "PTRACE_CONT failed\n");
-    }
-    if(program_vars.traced_program_id != waitpid(program_vars.traced_program_id, &wait_status,WCONTINUED)){
-        fprintf(stdout, "Error waitpid at line %d\n", __LINE__);
-    }
+        /* Check that no error have been made in the previous part */
+        if(errorCode == NO_ERROR){
 
-    /* Get current content from instruction pointer register */
-    ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs);
-    fprintf(stdout, "RIP before breakpoint = 0x%016llx\n", regs.rip);
+            /* Restart the process and wait that it continues */
+            if(ptrace(PTRACE_CONT, program_vars.traced_program_id, NULL, NULL) < 0){
+                fprintf(stderr, "PTRACE_CONT failed\n");
+                errorCode = ERROR;
+            } else {
+                /* Check that the process actually changed its state */
+                if(program_vars.traced_program_id != waitpid(program_vars.traced_program_id, &wait_status,WCONTINUED)){
+                    fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
+                    errorCode = ERROR;
+                } else {
 
-    /* Set current instruction as the beginning of the traced function */
-    regs.rip = program_vars.function_address;
-    ptrace(PTRACE_SETREGS, program_vars.traced_program_id, NULL, &regs);
+                    /* Get current content from instruction pointer register */
+                    if(ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs) < 0){
+                        fprintf(stderr, "Failed to get registers for PID %d", program_vars.traced_program_id);
+                        errorCode = ERROR;
+                    }else{
+                        fprintf(stdout, "RIP before breakpoint = 0x%016llx\n", regs.rip);
 
-    /* Check if we correctly stepped back by one instruction */
-    ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs);
-    fprintf(stdout, "RIP after breakpoint = 0x%016llx\n", regs.rip);
+                        /* Set current instruction as the beginning of the traced function */
+                        regs.rip = program_vars.function_address;
+                        if (ptrace(PTRACE_SETREGS, program_vars.traced_program_id, NULL, &regs) < 0){
+                            fprintf(stderr, "Failed to set registers for PID %d", program_vars.traced_program_id);
+                            errorCode = ERROR;
+                        } else {
+
+                            /* Check if we correctly stepped back by one instruction */
+                            if(ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs) < 0){
+                                fprintf(stderr, "Failed to get registers for PID %d", program_vars.traced_program_id);
+                                errorCode = ERROR;
+                            } else {
+                                fprintf(stdout, "RIP after breakpoint = 0x%016llx\n", regs.rip);
+                            } // End of PTRACE_GETREGS section 2
+
+                        } // End of PTRACE_SETREGS section
+
+                    } // End of PTRACE_GETREGS section 1
+
+                } // End of waitpid section
+
+            } // End of PTRACE_CONT section
+
+        } // End of check on errorCode
+
+    }// End of if on mem_file_fd
+
     return errorCode;
 }
 
@@ -143,9 +205,9 @@ int main(int argc, char *argv[]) {
     return INVALID_ARGUMENT;
   }
 
-  /* Get program name from argument_1, check for errors and store name in global struct */
   ErrorCode errCode;
 
+  /* Get program name from argument_1, check for errors and store name in global struct */
   /* Get the PID of current instance of the program */
   errCode = get_pid(argv[1]);
   if(errCode != NO_ERROR){
@@ -170,7 +232,7 @@ int main(int argc, char *argv[]) {
 
     int wait_status;
 
-    if(ptrace(PTRACE_ATTACH, program_vars.traced_program_id, NULL, NULL)<0){
+    if(ptrace(PTRACE_ATTACH, program_vars.traced_program_id, NULL, NULL) < 0){
         fprintf(stderr, "Error during PTRACE_ATTACH at line %d\n", __LINE__);
     }
 
@@ -181,7 +243,7 @@ int main(int argc, char *argv[]) {
     errCode = set_breakpoint();
 
 
-    if(ptrace(PTRACE_DETACH, program_vars.traced_program_id, NULL, NULL)<0){
+    if(ptrace(PTRACE_DETACH, program_vars.traced_program_id, NULL, NULL) < 0){
         fprintf(stderr, "Error during PTRACE_DETACH at line %d\n", __LINE__);
     }
     return errCode;
