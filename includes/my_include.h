@@ -17,6 +17,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+//#todo when everything is good, check if all macros are used
 #define PID_SIZE 16
 #define FUNCTION_SIZE 64
 #define POS_SIZE 64
@@ -31,6 +32,7 @@ struct program_vars_t{
   unsigned long program_main_address;
   unsigned long function_address; // main_address + function_offset
 
+  char instruction_backup[16];
   struct user_regs_struct registers;
 };
 
