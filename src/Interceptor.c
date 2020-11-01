@@ -43,7 +43,6 @@ static ErrorCode get_pid(const char * argument_1)
               perror("Failed to run command.");
               errCode = NULL_POINTER;
           } else {
-
               /* Read the line and check that we are actually reading characters */
               if (fgets(pid_buffer, LINE_SIZE, command_1_fd) == NULL)
               {
@@ -73,7 +72,7 @@ static ErrorCode get_pid(const char * argument_1)
                               program_vars.traced_program_id = atoi(pid_buffer);
                           }
                           pclose(command_2_fd);
-                      }
+                      } //END if on command_2_fd
 
                   } /* Multiple instances of the program have been found */
                       else {
@@ -81,14 +80,14 @@ static ErrorCode get_pid(const char * argument_1)
                           //#todo add prompt selection in case multiple instances have been found
                           errCode= ERROR;
                       }
-              }
+              } //END if on first fgets
               pclose(command_1_fd);
-          }
+          } //END if on command_1_fd
   } else {
       /* On access failure, print help */
       print_usage();
       errCode = FILE_NOT_FOUND;
-  }
+  } // END ifelse acces()
 
 
   return errCode;
@@ -251,7 +250,7 @@ static ErrorCode call_function(const unsigned long function_to_call){
         if (errorCode != NO_ERROR){
             fprintf(stderr, "%s\n", "Failed to set breakpoint.");
         } else {
-            fprintf(stdout, "Calling function at address %lu\n", function_to_call);
+            fprintf(stdout, "Calling function at address 0x%lx\n", function_to_call);
             /* Get current register state for the traced program */
             if(ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs) < 0){
                 errorCode = ERROR;
