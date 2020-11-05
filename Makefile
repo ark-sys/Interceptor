@@ -16,7 +16,7 @@ CC		:= gcc
 WFLAGS		:= -Wall -Wextra -Werror=float-equal -Wuninitialized \
 	-Wunused-variable -Wdouble-promotion -pedantic -Wmissing-prototypes \
 	-Wmissing-declarations -Werror=undef
-CFLAGS		:= -O0 -g -pthread -I$(INCLUDEDIR)
+CFLAGS		:= -std=gnu99 -O0 -g -pthread -I$(INCLUDEDIR)
 
 # commands
 RM	:= rm -rf
