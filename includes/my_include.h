@@ -18,6 +18,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
+#include <getopt.h>
 
 /* #todo when everything is good, check if all macros are used */
 #define PID_SIZE 16

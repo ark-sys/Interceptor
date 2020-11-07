@@ -18,12 +18,11 @@ int func1(int i){
 }
 
 int func2(int i){
-    i = 420+i;
+    i = 400 + i;
     return i;
 }
 
 int func3(int * i){
-    *i = 400 + (*i);
     return *i;
 }
 int main(void) {
