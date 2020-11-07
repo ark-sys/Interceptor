@@ -367,8 +367,8 @@ static ErrorCode write_values(const unsigned long address_position, size_t data_
                 perror("Failed to write data.");
             } else {
                 /* Write data from buffer to memory */
-                fprintf(stdout,"%s\n", "Memory state after writing.");
-                dump_memory(address_position, data_length);
+                fprintf(stdout, "%s\n", "Memory state after writing.");
+                dump_memory(address_position, data_length * 2);
             }
         
             fclose(mem_file_fd);
@@ -380,19 +380,19 @@ static ErrorCode write_values(const unsigned long address_position, size_t data_
     return errorCode;
 }
 
-static ErrorCode call_function(const unsigned long function_to_call, const char * param){
+static ErrorCode call_function_ref(const unsigned long function_to_call, const char *param) {
     ErrorCode errorCode = NO_ERROR;
     int wait_status;
 
     /* Read and do a backup of a certain amount of memory data that will be replaced by the indirect call instruction */
-    errorCode  = read_data(program_vars.traced_function_address, BUFFER_SIZE, program_vars.instruction_backup);
-    if(errorCode != NO_ERROR){
+    errorCode = read_data(program_vars.traced_function_address, BUFFER_SIZE, program_vars.instruction_backup);
+    if (errorCode != NO_ERROR) {
         fprintf(stderr, "%s\n", "Failed to read memory backup");
     } else {
 
         /* Set a breakpoint at the beginning of the function so we can stop its execution */
         errorCode = set_breakpoint(program_vars.traced_function_address);
-        if (errorCode != NO_ERROR){
+        if (errorCode != NO_ERROR) {
             fprintf(stderr, "%s\n", "Failed to set breakpoint.");
         } else {
 
@@ -521,43 +521,172 @@ static ErrorCode call_function(const unsigned long function_to_call, const char 
     }
     return errorCode;
 }
+
+static ErrorCode call_function_val(const unsigned long function_to_call, const char *param) {
+    ErrorCode errorCode = NO_ERROR;
+    int wait_status;
+
+    /* Read and do a backup of a certain amount of memory data that will be replaced by the indirect call instruction */
+    errorCode = read_data(program_vars.traced_function_address, BUFFER_SIZE, program_vars.instruction_backup);
+    if (errorCode != NO_ERROR) {
+        fprintf(stderr, "%s\n", "Failed to read memory backup");
+    } else {
+
+        /* Set a breakpoint at the beginning of the function so we can stop its execution */
+        errorCode = set_breakpoint(program_vars.traced_function_address);
+        if (errorCode != NO_ERROR) {
+            fprintf(stderr, "%s\n", "Failed to set breakpoint.");
+        } else {
+
+            /* Get a backup of all registers before we start operations */
+            errorCode = get_registers_backup();
+            if (errorCode != NO_ERROR) {
+                fprintf(stderr, "%s\n", "Failed to get registers backup.");
+            } else {
+
+
+                /* Look at the current data at rip */
+                dump_memory(program_vars.traced_function_address, 8);
+                dump_registers();
+
+                struct user_regs_struct regs;
+                fprintf(stdout, "Calling function at address 0x%08lX\n", function_to_call);
+                /* Get current register state for the traced program */
+                if (ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs) < 0) {
+                    errorCode = ERROR;
+                } else {
+
+                    /* Set current register with the new function and parameter to call
+                    * rax -> address of the function to be called
+                    * rip -> address of the current function
+                    * rsp -> address of the top of the stack pointer, where the value will be written
+                    * rdi -> parameter for the function, points to rsp so we can retrieve the written value
+                    * */
+                    regs.rax = function_to_call;
+                    regs.rip = program_vars.traced_function_address;
+                    regs.rdi = (unsigned long long) (atoi(param));
+
+                    /* Set new registers */
+                    if (ptrace(PTRACE_SETREGS, program_vars.traced_program_id, NULL, &regs) < 0) {
+                        fprintf(stderr, "%s\n", "Failed to set new registers");
+                        errorCode = ERROR;
+                    } else {
+                        /* Open /proc/pid/mem so we can write the indirect call instruction followed by a breakpoint (so we can recover the return value from the called function) */
+                        errorCode = write_data(program_vars.traced_function_address, sizeof(indirect_call),
+                                               (char *) indirect_call);
+                        if (errorCode != NO_ERROR) {
+                            fprintf(stderr, "%s\n", "Failed to write data in memory.");
+
+                        } else {
+                            fprintf(stdout, "Jumping to 0x%08lX\n", function_to_call);
+
+                            /* Resume program execution */
+                            if (ptrace(PTRACE_CONT, program_vars.traced_program_id, NULL, NULL) < 0) {
+                                fprintf(stderr, "%s\n", "Failed to resume execution of program.");
+                                errorCode = ERROR;
+                            } else {
+
+                                /* Check if the program has actually continued*/
+                                if (program_vars.traced_program_id !=
+                                    waitpid(program_vars.traced_program_id, &wait_status, WCONTINUED)) {
+                                    fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
+                                    errorCode = ERROR;
+                                } else {
+
+                                    fprintf(stdout, "PID <%d> got signal: %s\n", program_vars.traced_program_id,
+                                            strsignal(WSTOPSIG(wait_status)));
+                                    /* Get the state of the registers after the execution */
+                                    if (ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs) < 0) {
+                                        errorCode = ERROR;
+                                        fprintf(stderr, "Failed to get registers.\n");
+                                    } else {
+
+                                        /* Recover the returned value from the execution of the called function */
+                                        unsigned long long return_value = regs.rax;
+                                        fprintf(stdout, "\nReturned value is %llu\n", return_value);
+
+                                        /* Pass the returned value from the called function to the traced function */
+                                        regs.rip = program_vars.traced_function_address;
+                                        ptrace(PTRACE_SETREGS, program_vars.traced_program_id, 0, &regs);
+
+                                        dump_registers();
+
+                                        /* Stop the execution of the program so we can reinstate the data backup to its previous location */
+                                        errorCode = set_breakpoint(program_vars.traced_function_address);
+                                        if (errorCode != NO_ERROR) {
+                                            fprintf(stderr, "Failed to set breakpoint at line %d.\n", __LINE__);
+                                        } else {
+
+                                            /* Write the data to its previous location*/
+                                            errorCode = write_data(program_vars.traced_function_address, BUFFER_SIZE,
+                                                                   program_vars.instruction_backup);
+                                            if (errorCode != NO_ERROR) {
+                                                fprintf(stderr, "%s\n", "Failed to recover data backup.");
+                                            } else {
+                                                fprintf(stdout, "%s\n", "Registers before backup");
+                                                dump_registers();
+                                                program_vars.registers.rip = program_vars.traced_function_address;
+                                                program_vars.registers.rdi = return_value;
+
+                                                /* restore registers state */
+                                                errorCode = set_registers_backup();
+                                                if (errorCode != NO_ERROR) {
+                                                    fprintf(stderr, "%s\n",
+                                                            "Failed to recover registers backup.");
+                                                }
+                                                fprintf(stdout, "%s\n", "Registers after backup");
+                                                dump_registers();
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return errorCode;
+}
+
 int main(int argc, char *argv[]) {
-  printf("\e[1;1H\e[2J");
-  if(argc != 5){
-    print_usage();
-    fprintf(stderr, "Error! line:%d:%s.\n",__LINE__,ErrorCodetoString(INVALID_ARGUMENT));
-    return INVALID_ARGUMENT;
-  }
+    printf("\e[1;1H\e[2J");
+    if (argc != 5) {
+        print_usage();
+        fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(INVALID_ARGUMENT));
+        return INVALID_ARGUMENT;
+    }
 
-  ErrorCode errCode;
+    ErrorCode errCode;
 
-  /* Get program name from argument_1, check for errors and store name in global struct */
-  /* Get the PID of current instance of the program */
-  errCode = get_pid(argv[1]);
-  if(errCode != NO_ERROR){
-    fprintf(stderr, "Error! line:%d:%s.\n",__LINE__,ErrorCodetoString(errCode));
-    return errCode;
-  }else{
-    fprintf(stdout, "\n<%s> PID: %d\n", argv[1], program_vars.traced_program_id);
-  }
+    /* Get program name from argument_1, check for errors and store name in global struct */
+    /* Get the PID of current instance of the program */
+    errCode = get_pid(argv[1]);
+    if (errCode != NO_ERROR) {
+        fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(errCode));
+        return errCode;
+    } else {
+        fprintf(stdout, "\n<%s> PID: %d\n", argv[1], program_vars.traced_program_id);
+    }
 
-  /* Look for the address of the target function in the binary dump */
-  errCode = get_function_address(argv[2], &program_vars.traced_function_address);
-  if(errCode != NO_ERROR){
-    fprintf(stderr, "Error! line:%d:%s.\n",__LINE__,ErrorCodetoString(errCode));
-    return errCode;
-  }else{
-    fprintf(stdout, "\nTracing function <%s> at address: 0x%08lX\n",argv[2], program_vars.traced_function_address);
-  }
+    /* Look for the address of the target function in the binary dump */
+    errCode = get_function_address(argv[2], &program_vars.traced_function_address);
+    if (errCode != NO_ERROR) {
+        fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(errCode));
+        return errCode;
+    } else {
+        fprintf(stdout, "\nTracing function <%s> at address: 0x%08lX\n", argv[2], program_vars.traced_function_address);
+    }
 
-  /* Retrieve the size of the function in memory  */
-  errCode = get_function_size(program_vars.traced_function_address, &program_vars.traced_function_size);
-  if(errCode != NO_ERROR){
-      fprintf(stderr, "Error! line:%d:%s.\n",__LINE__,ErrorCodetoString(errCode));
-      return errCode;
-  }else{
-      fprintf(stdout, "\nFunction size: %d bytes.\n", program_vars.traced_function_size);
-  }
+    /* Retrieve the size of the function in memory  */
+    errCode = get_function_size(program_vars.traced_function_address, &program_vars.traced_function_size);
+    if (errCode != NO_ERROR) {
+        fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(errCode));
+        return errCode;
+    } else {
+        fprintf(stdout, "\nFunction size: %d bytes.\n", program_vars.traced_function_size);
+    }
 
   unsigned long addr_func_to_call;
   errCode = get_function_address(argv[3], &addr_func_to_call);
@@ -583,10 +712,21 @@ int main(int argc, char *argv[]) {
             dump_memory(program_vars.traced_function_address, program_vars.traced_function_size);
             dump_registers();
 
-            errCode = call_function(addr_func_to_call, argv[4]);
-//          errCode = set_breakpoint(program_vars.traced_function_address);
-            if (errCode != NO_ERROR){
-                fprintf(stderr, "%s\n","Failed to call func2.");
+//#todo sanity check and conversion on value here before we pass it to functions
+
+            if (strcmp("func2", argv[3]) == 0) {
+                errCode = call_function_val(addr_func_to_call, argv[4]);
+                if (errCode != NO_ERROR) {
+                    fprintf(stderr, "%s\n", "Failed to call func2.");
+                }
+            } else if (strcmp("func3", argv[3]) == 0) {
+                errCode = call_function_ref(addr_func_to_call, argv[4]);
+                if (errCode != NO_ERROR) {
+                    fprintf(stderr, "%s\n", "Failed to call func2.");
+                }
+            } else {
+
+                fprintf(stderr, "Function not found at line %d.", __LINE__);
             }
 
         }
