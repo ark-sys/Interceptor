@@ -19,6 +19,7 @@ static void func1(void){
 static int exit_value = 0;
 
 static void sig_handler(int _) {
+    (void)_;
     exit_value = 1;
 }
 
