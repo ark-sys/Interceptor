@@ -1,11 +1,12 @@
 
 
 
-# WELCOME TO INTERCEPTOS
+# WELCOME TO INTERCEPTOR
 
 A simple tracer base on Ptrace and a little bit of libelf.
 
 ## CONTEXT
+
 The goal of this Linux program is to modify code on the fly of some program. In order to do that we need to trace the program execution in memory, modify its instructions and registers during execution and once all operations are completed we have to restore it's previous state.
 
 This program will fetch the pid of the running program to be traced (the instance of this program must be unique otherwise it will trigger an error)
@@ -33,7 +34,7 @@ You can also `echo $?` to check return value from interceptor (0 == NO ERROR)
 	- `cd build`
     - `cmake .. ; make`
 
-### RUN TUXART
+### RUN INTERCEPTOR
 
 In order to check the program execution with the provided examples you will need two terminals.
 - In Terminal 1, move to bin folder and type
