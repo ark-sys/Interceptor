@@ -18,9 +18,9 @@ include_directories(
 
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/)
 
-add_executable(Interceptor ${SRCS} ${HEADERS})
-target_link_libraries(Interceptor -O0 Threads::Threads m -lelf )
-target_compile_options(Interceptor PRIVATE -Wall -Wextra -Werror=float-equal -Wuninitialized -Wunused-variable -Wdouble-promotion -pedantic -Wmissing-prototypes -Wmissing-declarations -Werror=undef)
+add_executable(interceptor ${SRCS} ${HEADERS})
+target_link_libraries(interceptor -O0 Threads::Threads m -lelf )
+target_compile_options(interceptor PRIVATE -Wall -Wextra -Werror=float-equal -Wuninitialized -Wunused-variable -Wdouble-promotion -pedantic -Wmissing-prototypes -Wmissing-declarations -Werror=undef)
 
 add_executable(hello_there examples/hello_there.c)
 target_compile_options(hello_there PRIVATE -Wunused-variable)
