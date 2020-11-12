@@ -2,29 +2,27 @@
 #define INTERCEPTOR_H_
 
 #include "common.h"
+#include "memory.h"
 #include "elfscan.h"
-#include "errorcodes.h"
 
 struct breakpoint_t{
     unsigned long address;
     unsigned char original_data;
 };
 
-struct program_vars_t{
-    pid_t traced_program_id;
-    char traced_program_name[POS_SIZE];
-    int * traced_program_type;
-
-    int traced_function_size;
-    unsigned long traced_function_address; /* main_address + function_offset, if DYN type detected*/
-    unsigned long traced_function_offset;
-    unsigned long program_main_address;
-
-    char instruction_backup[BUFFER_SIZE];
-    struct user_regs_struct registers;
-};
 
 
 
+/* Byte code instruction of 'trap' */
+static const unsigned char trap_instruction = 0xCC;
 
+/* Indirect call instruction */
+static const unsigned char indirect_call[3] = {0xFF, 0xD0, 0xCC};
+
+/* Jump instruction */
+static const unsigned char jump_instruction[2] = {0x48, 0xB8};
+
+ErrorCode set_breakpoint(const pid_t traced_program_id, const unsigned long address_position);
+ErrorCode call_function_val(struct program_vars_t program_vars, const unsigned long function_to_call, const char *param);
+ErrorCode call_function_ref(struct program_vars_t program_vars, const unsigned long function_to_call, const char *param);
 #endif

@@ -9,7 +9,7 @@ int func1(int i);
 int func2(int i);
 
 int func3(int *i);
-
+int testargument(int i, int * y, char * lol);
 /*static const char * cool_message = "Hello there.\n";
 
 static void func1(void){
@@ -35,13 +35,18 @@ int func2(int i) {
 int func3(int * i){
     return *i;
 }
+
+int testargument(int i, int * y, char * lol){
+
+    return i;
+}
 int main(void) {
     int i = 0;
     signal(SIGINT, sig_handler);
 
     while (!exit_value) {
         i = func1(i);
-        printf("%d\n", i);
+        printf("yo %d\n", i);
         sleep(1);
     }
 

@@ -1,5 +1,5 @@
-#ifndef SEL_COMMON_H
-#define SEL_COMMON_H
+#ifndef INTERCEPTOR_COMMON_H
+#define INTERCEPTOR_COMMON_H
 
 #include <sys/ptrace.h>
 #include <sys/types.h>
@@ -21,6 +21,8 @@
 #include <string.h>
 #include <getopt.h>
 
+#include "errorcodes.h"
+
 
 /* #todo when everything is good, check if all macros are used */
 #define PID_SIZE 16
@@ -29,5 +31,12 @@
 #define LINE_SIZE 128
 #define COMMAND_SIZE 256
 #define BUFFER_SIZE 4
+
+
+void print_usage(void);
+void dump_memory(const pid_t traced_program_id, const unsigned long start_address, const unsigned long nb_bytes);
+ErrorCode dump_registers(const pid_t traced_program_id);
+ErrorCode get_registers_backup(const pid_t traced_program_id, struct user_regs_struct * registers);
+ErrorCode set_registers_backup(const pid_t traced_program_id, struct user_regs_struct * registers);
 
 #endif //COMMON_H

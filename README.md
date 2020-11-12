@@ -3,7 +3,7 @@
 
 # WELCOME TO INTERCEPTOR
 
-A simple tracer base on Ptrace and a little bit of libelf.
+A simple tracer based on ptrace and a little bit of libelf.
 
 ## CONTEXT
 
@@ -15,7 +15,7 @@ Then thanks to the pid we can access its memory space via `/proc/pid/mem`
 
 If the file is compiled with the -pie option, DYN type symbol will be detected. In this case we will access `/proc/pid/maps` to retrieve memory start address (since in this scenario addresses will be in a random place in memory) that we will add to the evaluated functions
 
-Once we know the address of the functions and we have access to memory file relative to a pid than we can do all sorts of operations such as :
+Once we know the address of the functions and we have access to the memory file relative to a pid than we can do all sorts of operations such as :
 - Set breakpoints
 - Set indirect calls that will help us to call other functions
 - Directly write functions in some areas in memory
