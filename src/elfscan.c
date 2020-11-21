@@ -50,6 +50,7 @@ ErrorCode check_elf_type(const char * program_name, int * result) {
     return errorCode;
 }
 
+
 /* Return the pid of a program. */
 ErrorCode get_pid(const char * argument_1, struct program_vars_t * program_vars)
 {
@@ -67,7 +68,6 @@ ErrorCode get_pid(const char * argument_1, struct program_vars_t * program_vars)
 
         /* Store the program name for later use */
         snprintf(program_vars->traced_program_name, POS_SIZE, "%s", argument_1);
-        printf( "%s\n",program_vars->traced_program_name);
 
         /* pgrep -c <program_name> , check how many instances of the program are running */
         snprintf(command, COMMAND_SIZE, "pgrep -c %s", argument_1);
@@ -114,7 +114,7 @@ ErrorCode get_pid(const char * argument_1, struct program_vars_t * program_vars)
                             }else{
                                 /*  if dynamic elf detected, base address for main */
                                 if (program_vars->traced_program_type == ET_DYN){
-                                    get_program_startaddress(program_vars->traced_program_id, program_vars->traced_program_name, program_vars->program_start_address);
+                                    get_program_startaddress(program_vars->traced_program_id, program_vars->traced_program_name, &program_vars->program_start_address);
                                 }  else {
                                     program_vars->program_start_address = 0;
                                 }
@@ -137,13 +137,13 @@ ErrorCode get_pid(const char * argument_1, struct program_vars_t * program_vars)
         /* On access failure, print help */
         print_usage();
         errCode = FILE_NOT_FOUND;
-    } // END ifelse acces()
+    } // END if else access()
 
 
     return errCode;
 }
 
-ErrorCode get_program_startaddress(const pid_t traced_program_id, const char * traced_program_name, unsigned long * program_start_address)
+ErrorCode get_program_startaddress(const pid_t traced_program_id, const char * traced_program_name, unsigned long long * program_start_address)
 {
     ErrorCode errCode = NO_ERROR;
     char path_to_mem[POS_SIZE];
@@ -186,15 +186,16 @@ ErrorCode get_program_startaddress(const pid_t traced_program_id, const char * t
     return errCode;
 }
 
-ErrorCode get_libc_function_address(const pid_t traced_program_id, const char * libc_function_name, unsigned long * function_address)
+ErrorCode get_libc_function_address(const pid_t traced_program_id, const char * libc_function_name, unsigned long long * function_address)
 {
 
     ErrorCode errCode = NO_ERROR;
     char path_to_mem[POS_SIZE];
+    unsigned long long libc_mem_baseaddress;
     FILE * program_maps_fd;
 
     /* Create the command that will get us the position of the beginning of the main during runtime */
-    snprintf(path_to_mem, POS_SIZE, "grep -E \'r-xp.*libc\' /proc/%d/maps | cut -d \" \" -f27", traced_program_id);
+    snprintf(path_to_mem, POS_SIZE, "grep -E \'r-xp.*libc\' /proc/%d/maps", traced_program_id);
 
     /* Open the file and do some error checking */
     if(NULL == (program_maps_fd = popen(path_to_mem, "r")) ){
@@ -203,44 +204,66 @@ ErrorCode get_libc_function_address(const pid_t traced_program_id, const char * 
     } else {
 
         char readline[LINE_SIZE];
-        /* Start reading one line at the time */
+        char readline2[LINE_SIZE];
+        /* Recover the line that contains the address and path for the executable library */
         if(fgets(readline, LINE_SIZE, program_maps_fd) == NULL )
         {
             perror("Failed to read maps file.");
             errCode = NULL_POINTER;
         } else {
+            strcpy(readline2,readline);
             /* We assume that no error has been made till here */
             char command[COMMAND_SIZE];
             FILE * command_fd;
 
-            /* Remove trailing '\n' from readline buffer*/
+            /* Remove trailing '\n' from readline buffer */
             readline[strcspn(readline, "\r\n")] = 0;
-
-            /*
-             * This command will first check if the function that we are looking for is unique in the symbol table
-             * */
-            snprintf(command, COMMAND_SIZE, "objdump -TC %s | grep %s", readline, libc_function_name);
-            /* Open the file and do some error checking */
-            if((command_fd = popen(command, "r")) == NULL){
-                perror("Failed to open command for PID %s");
-                errCode = NULL_POINTER;
+            char buffer1[POS_SIZE];
+            unsigned long long tmp1;
+            char tmp2[POS_SIZE];
+            unsigned long long tmp3;
+            char tmp4[POS_SIZE];
+            int tmp5;
+//#todo change this ASAP
+            if(sscanf(readline, "%llx-%llx %s %llx %s %d %s",&libc_mem_baseaddress,&tmp1,tmp2,&tmp3,tmp4,&tmp5, buffer1) == EOF){
+                perror("Failed to scan line.");
+                errCode = ERROR;
             } else {
-                /* Check if we are correctly reading lines */
-                if (fgets(readline, LINE_SIZE, command_fd) == NULL)
-                {
-                    errCode = NULL_POINTER;
-                }else{
 
-                    /* Check if the content that we got has a good format (like a function's address)*/
-                    if(strtoul(readline, NULL, 16) == 0){
-                        errCode = FUNCTION_NOT_FOUND;
+                if (libc_mem_baseaddress == 0) {
+                    errCode = ERROR;
+                    fprintf(stderr, "%s\n", "Conversion of libc base address failed");
+                } else {
+
+                    /*
+                     * This command will first check if the function that we are looking for is unique in the symbol table
+                     * A '/' has been added before the first '%s' because during the last tokenization we removed it (:
+                     * */
+                    snprintf(command, COMMAND_SIZE, "objdump -TC /%s | grep -w %s", buffer1, libc_function_name);
+                    /* Open the file and do some error checking */
+                    if ((command_fd = popen(command, "r")) == NULL) {
+                        perror("Failed to open command for PID %s");
+                        errCode = NULL_POINTER;
                     } else {
-                        /* Get a correct representation of the address from char* to unsigned long*/
-                        *function_address = strtoul(readline, NULL, 16);
+                        /* Check if we are correctly reading lines */
+                        if (fgets(readline, LINE_SIZE, command_fd) == NULL) {
+                            errCode = NULL_POINTER;
+                        } else {
+
+                            /* Check if the content that we got has a good format (like a function's address)*/
+                            if (strtoul(readline, NULL, 16) == 0) {
+                                errCode = FUNCTION_NOT_FOUND;
+                            } else {
+                                /* Get a correct representation of the address from char* to unsigned long*/
+                                *function_address = strtoul(readline, NULL, 16) + libc_mem_baseaddress;
+                            }
+                        }
+                        pclose(command_fd);
                     }
+
                 }
-                pclose(command_fd);
             }
+
         }
         pclose(program_maps_fd);
     }
@@ -248,7 +271,7 @@ ErrorCode get_libc_function_address(const pid_t traced_program_id, const char * 
 }
 
 /* Parses the traced program memory file and returns the address of function passed as argument; return value is the second argument */
-ErrorCode get_function_offset(const char * traced_program_name, const char * function_name, unsigned long * function_offset)
+ErrorCode get_function_offset(const char * traced_program_name, const char * function_name, unsigned long long * function_offset)
 {
     ErrorCode errCode = NO_ERROR;
     FILE * binary_dump_fd;
@@ -274,7 +297,7 @@ ErrorCode get_function_offset(const char * traced_program_name, const char * fun
         } else {
 
             /* Check if the content that we got has a good format (like a function's address)*/
-            if(strtol(readline, NULL, 16) == 0){
+            if(strtoul(readline, NULL, 16) == 0){
                 errCode = FUNCTION_NOT_FOUND;
 
             } else {
@@ -289,7 +312,7 @@ ErrorCode get_function_offset(const char * traced_program_name, const char * fun
     return errCode;
 }
 
-ErrorCode get_function_size(const char * traced_program_name, unsigned long function_address, unsigned long * size_output){
+ErrorCode get_function_size(const char * traced_program_name, unsigned long long int function_address, unsigned long * size_output){
     ErrorCode errorCode = NO_ERROR;
     char command[COMMAND_SIZE];
     char readline[LINE_SIZE];
@@ -300,7 +323,7 @@ ErrorCode get_function_size(const char * traced_program_name, unsigned long func
      * select only the value for the function that we are tracing
      * recover the actual size of the function
      * */
-    snprintf(command, COMMAND_SIZE, "nm --print-size --size-sort --radix=d %s | grep %lu | cut -d \" \" -f2", traced_program_name, function_address);
+    snprintf(command, COMMAND_SIZE, "nm --print-size --size-sort --radix=d %s | grep %llu | cut -d \" \" -f2", traced_program_name, function_address);
     command_fd = popen(command, "r");
     if(command_fd == NULL){
         fprintf(stderr, "%s\n", "Failed to run nm command.");

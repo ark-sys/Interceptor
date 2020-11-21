@@ -6,6 +6,7 @@
 #include <sys/wait.h>
 #include <sys/user.h>
 #include <sys/stat.h>
+#include <sys/mman.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 
@@ -38,5 +39,9 @@ void dump_memory(const pid_t traced_program_id, const unsigned long start_addres
 ErrorCode dump_registers(const pid_t traced_program_id);
 ErrorCode get_registers_backup(const pid_t traced_program_id, struct user_regs_struct * registers);
 ErrorCode set_registers_backup(const pid_t traced_program_id, struct user_regs_struct * registers);
+ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, char * output_buffer);
+ErrorCode write_data(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, const char * input_buffer);
+ErrorCode write_values(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, const char *  input_buffer);
+ErrorCode is_region_available(const pid_t traced_program_id, const unsigned long long region_address );
 
 #endif //COMMON_H

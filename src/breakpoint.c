@@ -53,7 +53,7 @@ ErrorCode set_breakpoint(const pid_t traced_program_id, const unsigned long addr
                     perror("Error waitpid.");
                     errorCode = ERROR;
                 } else {
-                    fprintf(stdout, "PID <%d> got signal: %s\n\n", traced_program_id, strsignal(WSTOPSIG(wait_status)));
+                    fprintf(stdout, "bp: PID <%d> got signal: %s\n\n", traced_program_id, strsignal(WSTOPSIG(wait_status)));
 
                 } // End of waitpid section
 
