@@ -21,7 +21,9 @@ ErrorCode check_elf_type(const char * program_name, int *result);
 ErrorCode get_pid(const char * argument_1, struct program_vars_t * program_vars);
 
 ErrorCode get_program_startaddress(pid_t traced_program_id, const char * traced_program_name, unsigned long long * program_start_address);
-ErrorCode get_libc_function_address(const pid_t traced_program_id, const char * libc_function_name, unsigned long long * function_address);
+ErrorCode
+get_libc_function_address(const pid_t traced_program_id, const int traced_program_type, const char *traced_program_name,
+                          unsigned long long *function_address, const char *libc_function_name);
 
 ErrorCode get_function_offset(const char * traced_program_name, const char * function_name, unsigned long long * function_offset);
 ErrorCode get_function_size(const char * traced_program_name, unsigned long long function_address, unsigned long * size_output);

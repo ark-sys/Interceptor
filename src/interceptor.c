@@ -3,7 +3,6 @@
 /* Structure needed to store variables used in different sections of the program */
 static struct program_vars_t program_vars;
 int func4 (int i){
-    i = 0;
     return i;
 }
 
@@ -46,16 +45,10 @@ int main(int argc, char *argv[]) {
     }
 
     unsigned long long addr_func_to_call;
-    errCode = get_function_offset(program_vars.traced_program_name, argv[3], &addr_func_to_call);
-    if (errCode != NO_ERROR){
-        fprintf(stderr, "%s\n","Failed to get address for func2.");
-        return errCode;
-    } else {
-        addr_func_to_call = addr_func_to_call + program_vars.program_start_address;
-    }
-    
 
-    
+
+
+
     /*
      * 
      * 
@@ -79,18 +72,47 @@ int main(int argc, char *argv[]) {
             dump_registers(program_vars.traced_program_id);
 
 //#todo sanity check and conversion on value here before we pass it to functions
-
+            /*
+             * Simple indirect call to a function in the traced program memory with argument passed as value
+             * */
             if (strcmp("func2", argv[3]) == 0) {
-                errCode = call_function_val(program_vars, addr_func_to_call, argv[4]);
-                if (errCode != NO_ERROR) {
-                    fprintf(stderr, "%s\n", "Failed to call func2.");
+                errCode = get_function_offset(program_vars.traced_program_name, argv[3], &addr_func_to_call);
+                if (errCode != NO_ERROR){
+                    fprintf(stderr, "%s <%s>\n","Failed to get address for",argv[3]);
+                } else {
+                    addr_func_to_call = addr_func_to_call + program_vars.program_start_address;
+                    errCode = call_function_val(program_vars, addr_func_to_call, argv[4]);
+                    if (errCode != NO_ERROR) {
+                        fprintf(stderr, "Failed to call <%s> with argument <%s>\n", argv[3], argv[4]);
+                    }
                 }
-            } else if (strcmp("func3", argv[3]) == 0) {
-                errCode = call_function_ref(program_vars, addr_func_to_call, argv[4]);
-                if (errCode != NO_ERROR) {
-                    fprintf(stderr, "%s\n", "Failed to call func2.");
+
+
+
+            } else
+                /*
+                 * Simple indirect call to a function in the traced program memory with argument passed as reference
+                 * */
+            if (strcmp("func3", argv[3]) == 0) {
+                errCode = get_function_offset(program_vars.traced_program_name, argv[3], &addr_func_to_call);
+                if (errCode != NO_ERROR){
+                    fprintf(stderr, "%s <%s>\n","Failed to get address for",argv[3]);
+                } else {
+                    addr_func_to_call = addr_func_to_call + program_vars.program_start_address;
+                    errCode = call_function_ref(program_vars, addr_func_to_call, argv[4]);
+                    if (errCode != NO_ERROR) {
+                        fprintf(stderr, "Failed to call <%s> with argument <%s>\n", argv[3], argv[4]);
+                    }
                 }
-            } else if(strcmp("func4", argv[3]) == 0) {
+
+
+            } else
+                /*
+                 * Indirect call to a function written in the [heap] memory of the traced program
+                 *
+                 */
+
+                if(strcmp("func4", argv[3]) == 0) {
 
                 unsigned long long func4_address;
                 /* Look for the address of the target function in the binary dump */
@@ -126,7 +148,9 @@ int main(int argc, char *argv[]) {
                 /*
                  * Look for the address of posix_memalign in the dynamically linked libc and store it in pma_address
                  * */
-                errCode = get_libc_function_address(program_vars.traced_program_id, "posix_memalign", &pma_address);
+                errCode = get_libc_function_address(program_vars.traced_program_id, program_vars.traced_program_type,
+                                                    program_vars.traced_program_name,
+                                                    &pma_address, "posix_memalign");
                 if(errCode != NO_ERROR){
                     fprintf(stderr, "%s: %s\n","Failed to get posix_memalign address.", ErrorCodetoString(errCode));
                 }else{
@@ -146,7 +170,9 @@ int main(int argc, char *argv[]) {
                         /*
                          * Look for the address of protect address in the dynamically liked libc and store it in mp_address
                          * */
-                        errCode = get_libc_function_address(program_vars.traced_program_id, "mprotect", &mp_address);
+                        errCode = get_libc_function_address(program_vars.traced_program_id,
+                                                            program_vars.traced_program_type,
+                                                            program_vars.traced_program_name, &mp_address, "mprotect");
                         if(errCode != NO_ERROR){
                             fprintf(stderr, "%s: %s\n","Failed to get posix_memalign address.", ErrorCodetoString(errCode));
                         }else{
