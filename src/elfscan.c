@@ -55,89 +55,111 @@ ErrorCode check_elf_type(const char * program_name, int * result) {
 ErrorCode get_pid(const char * argument_1, struct program_vars_t * program_vars)
 {
     ErrorCode errCode = NO_ERROR;
-
+    /* pgrep count file descriptor */
     FILE* command_1_fd;
+    /* pgrep pid */
     FILE* command_2_fd;
+    /* cat cmdline binary path */
+    FILE* command_3_fd;
 
     char command[COMMAND_SIZE];
     char pid_buffer[LINE_SIZE];
 
-    /* Check if the file exists and is accessible */
-    if (access(argument_1, F_OK) != -1){
-        fprintf(stdout, "\nOpening binary: <%s>\n", argument_1);
+    /* pgrep -c <program_name> , check how many instances of the program are running */
+    snprintf(command, COMMAND_SIZE, "pgrep -c %s", argument_1);
+    command_1_fd = popen(command, "r");
 
-        /* Store the program name for later use */
-        snprintf(program_vars->traced_program_name, POS_SIZE, "%s", argument_1);
-
-        /* pgrep -c <program_name> , check how many instances of the program are running */
-        snprintf(command, COMMAND_SIZE, "pgrep -c %s", argument_1);
-        command_1_fd = popen(command, "r");
-
-        /* Check the command execution status */
-        if(command_1_fd == NULL)
+    /* Check the command execution status */
+    if(command_1_fd == NULL)
+    {
+        perror("Failed to run command.");
+        errCode = NULL_POINTER;
+    } else {
+        /* Read the line and check that we are actually reading characters */
+        if (fgets(pid_buffer, LINE_SIZE, command_1_fd) == NULL)
         {
-            perror("Failed to run command.");
+            perror("Failed to read command output.");
             errCode = NULL_POINTER;
         } else {
-            /* Read the line and check that we are actually reading characters */
-            if (fgets(pid_buffer, LINE_SIZE, command_1_fd) == NULL)
-            {
-                perror("Failed to read command output.");
-                errCode = NULL_POINTER;
-            } else {
-                /* No programs have been found running */
-                if (strtol(pid_buffer, NULL, 10) == 0){
-                    errCode = PROGRAM_NOT_RUNNING;
-                } else
-                    /* One instance of the program has been found */
-                if (strtol(pid_buffer, NULL, 10) == 1){
-                    /* pgrep <program_name>
-                     * actually get the PID of the program that we want to trace
-                     * */
-                    snprintf(command, COMMAND_SIZE, "pgrep %s", argument_1);
-                    command_2_fd = popen(command, "r");
-                    if (command_2_fd == NULL){
-                        perror("Failed to run command.");
+            /* No programs have been found running */
+            if (strtol(pid_buffer, NULL, 10) == 0){
+                errCode = PROGRAM_NOT_RUNNING;
+            } else
+                /* One instance of the program has been found */
+            if (strtol(pid_buffer, NULL, 10) == 1){
+                /* pgrep <program_name>
+                 * actually get the PID of the program that we want to trace
+                 * */
+                snprintf(command, COMMAND_SIZE, "pgrep %s", argument_1);
+                command_2_fd = popen(command, "r");
+                if (command_2_fd == NULL){
+                    perror("Failed to run command.");
+                    errCode = NULL_POINTER;
+                } else {
+                    if (fgets(pid_buffer, LINE_SIZE, command_2_fd) == NULL){
+                        perror("Failed to read PID.");
                         errCode = NULL_POINTER;
                     } else {
-                        if (fgets(pid_buffer, LINE_SIZE, command_2_fd) == NULL){
-                            perror("Failed to read PID.");
-                            errCode = NULL_POINTER;
+                        /* The PID is converted and stored in a global structure for later use */
+                        if((program_vars->traced_program_id = strtol(pid_buffer, NULL, 10)) == 0){
+                            errCode = ERROR;
+                            fprintf(stderr, "%s\n", "Failed to convert PID from char * to pid_t.");
                         } else {
-                            /* The PID is converted and stored in a global structure for later use */
-                            program_vars->traced_program_id = strtol(pid_buffer, NULL, 10);
 
-                            /* Check current elf type so we know if we have to evaluate an offset for functions or not */
-                            errCode = check_elf_type(argument_1, &program_vars->traced_program_type);
-                            if(errCode != NO_ERROR){
-                                fprintf(stderr,"%s\n", "Failed to get elf type.");
-                            }else{
-                                /*  if dynamic elf detected, base address for main */
-                                if (program_vars->traced_program_type == ET_DYN){
-                                    get_program_startaddress(program_vars->traced_program_id, program_vars->traced_program_name, &program_vars->program_start_address);
-                                }  else {
-                                    program_vars->program_start_address = 0;
+                            /* Retrieve and store the exact path for the currently traced program */
+                            char path_to_program[COMMAND_SIZE];
+                            snprintf(path_to_program,COMMAND_SIZE, "cat /proc/%d/cmdline", program_vars->traced_program_id);
+
+                            if((command_3_fd = popen(path_to_program, "r")) == NULL){
+                                errCode = NULL_POINTER;
+                                fprintf(stderr, "%s\n", "Failed to recover path of traced executable");
+                            } else {
+                                char buffer[COMMAND_SIZE];
+                                if(fgets(buffer, COMMAND_SIZE, command_3_fd) == NULL){
+                                    errCode = NULL_POINTER;
+                                    fprintf(stderr, "%s\n", "Failed to read path to executable.");
+                                }else{
+                                    snprintf(program_vars->traced_program_name, COMMAND_SIZE, "%s", buffer);
+
+                                    /* Check if the file is actually accessible */
+                                    if (access(program_vars->traced_program_name, F_OK) != 0){
+                                        fprintf(stderr, "Failed to access elf binary at %s\n", program_vars->traced_program_name);
+                                        print_usage();
+                                        errCode = FILE_NOT_FOUND;
+                                    } else {
+
+                                        /* Check current elf type so we know if we have to evaluate an offset for functions or not */
+                                        errCode = check_elf_type(argument_1, &program_vars->traced_program_type);
+                                        if(errCode != NO_ERROR){
+                                            fprintf(stderr,"%s\n", "Failed to get elf type.");
+                                        }else{
+                                            /*  if dynamic elf detected, base address for main */
+                                            if (program_vars->traced_program_type == ET_DYN){
+                                                get_program_startaddress(program_vars->traced_program_id, argument_1, &program_vars->program_start_address);
+                                            }  else {
+                                                program_vars->program_start_address = 0;
+                                            }
+                                        }
+                                    }
                                 }
+                                pclose(command_3_fd);
                             }
                         }
-                        pclose(command_2_fd);
-                    } /*END if on command_2_fd */
+                    }
+                    pclose(command_2_fd);
+                } /*END if on command_2_fd */
 
-                } /* Multiple instances of the program have been found */
-                else {
-                    fprintf(stdout, "%ld instances of binary <%s> have been found.\n Please select which one you want to trace\n", strtol(pid_buffer, NULL, 10), argument_1);
-                    //#todo add prompt selection in case multiple instances have been found
-                    errCode= ERROR;
-                }
-            } //END if on first fgets
-            pclose(command_1_fd);
-        } //END if on command_1_fd
+            } /* Multiple instances of the program have been found */
+            else {
+                fprintf(stdout, "%ld instances of binary <%s> have been found.\n Please select which one you want to trace\n", strtol(pid_buffer, NULL, 10), argument_1);
+                //#todo add prompt selection in case multiple instances have been found
+                errCode= ERROR;
+            }
+        } //END if on first fgets
+        pclose(command_1_fd);
+    } //END if on command_1_fd
 
-    } else {
-        /* On access failure, print help */
-        print_usage();
-        errCode = FILE_NOT_FOUND;
-    } // END if else access()
+
 
 
     return errCode;
@@ -171,13 +193,16 @@ ErrorCode get_program_startaddress(const pid_t traced_program_id, const char * t
             errCode = NULL_POINTER;
         } else  {
             /* Since readline is a char* buffer, convert it to unsigned long to match address representation */
-            *program_start_address = strtoul(readline, NULL, 16);
+            *program_start_address = strtoull(readline, NULL, 16);
             /* strtoul returns 0 if there is an error.
              * Also if PID is really 0, then something is reaaallly wrong
              * */
             if(*program_start_address == 0){
                 errCode = ERROR;
+            }else {
+                fprintf(stdout, "Program start address has been located at 0x%llX\n", *program_start_address);
             }
+
 
         }
         pclose(program_maps_fd);
@@ -334,7 +359,9 @@ ErrorCode get_function_size(const char * traced_program_name, unsigned long long
         {
             errorCode = NULL_POINTER;
         } else {
-            *size_output = strtoul(readline, NULL,10);
+            if((*size_output = strtoul(readline, NULL,10)) == 0){
+                errorCode = ERROR;
+            }
         }
     }
     return errorCode;

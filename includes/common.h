@@ -37,8 +37,6 @@
 void print_usage(void);
 void dump_memory(const pid_t traced_program_id, const unsigned long start_address, const unsigned long nb_bytes);
 ErrorCode dump_registers(const pid_t traced_program_id);
-ErrorCode get_registers_backup(const pid_t traced_program_id, struct user_regs_struct * registers);
-ErrorCode set_registers_backup(const pid_t traced_program_id, struct user_regs_struct * registers);
 ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, char * output_buffer);
 ErrorCode write_data(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, const char * input_buffer);
 ErrorCode write_values(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, const char *  input_buffer);

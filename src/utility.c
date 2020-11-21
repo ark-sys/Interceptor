@@ -48,24 +48,6 @@ ErrorCode dump_registers(pid_t traced_program_id){
     return errorCode;
 }
 
-ErrorCode get_registers_backup(const pid_t traced_program_id, struct user_regs_struct * registers){
-    ErrorCode errorCode = NO_ERROR;
-    if(ptrace(PTRACE_GETREGS, traced_program_id, NULL, registers) < 0){
-        fprintf(stderr,"%s\n", "Failed to save current registers state.");
-        errorCode = ERROR;
-    }
-    return errorCode;
-}
-
-ErrorCode set_registers_backup(const pid_t traced_program_id, struct user_regs_struct * registers){
-    ErrorCode errorCode = NO_ERROR;
-    if(ptrace(PTRACE_SETREGS, traced_program_id, NULL, registers) < 0){
-        fprintf(stderr,"%s\n", "Failed to set backup registers state.");
-        errorCode = ERROR;
-    }
-    return errorCode;
-}
-
 ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, char * output_buffer){
     ErrorCode errorCode = NO_ERROR;
     char path_to_mem[64];
@@ -84,8 +66,8 @@ ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_p
 
             /* Read data to buffer */
             if(fread(output_buffer, sizeof(char)*data_length,1, mem_file_fd) == 0){
-                errorCode = ERROR;
                 perror("Failed to read data.");
+                errorCode = ERROR;
             }
         }
         fclose(mem_file_fd);
@@ -110,12 +92,12 @@ ErrorCode write_data(const pid_t traced_program_id, const unsigned long address_
         } else {
 
             /* Just a print message to see what we are writing */
-            fprintf(stdout, "Writing ");
+            fprintf(stdout, "\nWriting ");
             for(int i = 0; i < (int)data_length; i++){
 
                 fprintf(stdout, "0x%X ", (input_buffer[i] & 0xFF));
             }
-            fprintf(stdout, " at address 0x%08lX\n" ,address_position);
+            fprintf(stdout, "at address 0x%08lX\n" ,address_position);
 
             /* Write data from buffer to memory */
             if(fwrite(input_buffer, sizeof(char), data_length, mem_file_fd) == 0){
@@ -203,17 +185,18 @@ ErrorCode is_region_available(const pid_t traced_program_id, const unsigned long
             unsigned long long high_boundary;
 
             if (sscanf(readline, "%llX-%llX", &low_boundary, &high_boundary) != 2){
-
                 perror("Failed to read boundaries for heap.");
                 errorCode = ERROR;
             } else {
+
+                fprintf(stdout, "\nNew region created at 0x%016llX\n", region_address);
                 /* Check if argument address is actually in heap region */
-                if (!((low_boundary <= region_address) & (region_address < high_boundary))) {
+                if((region_address >= low_boundary) & (region_address < high_boundary)){
+                    fprintf(stdout, "Allocated memory has been located in heap region. Heap boundaries are %llX-%llX\n", low_boundary, high_boundary);
+                } else {
                     /* If we are here, than it meas that 'address_region' is not in heap, so posix_memalign failed*/
                     errorCode = ERROR;
                     fprintf(stderr, "%s\n", "The newly created region is not in heap.");
-                } else {
-                    fprintf(stdout, "%s\n", "New region has been located in heap region.");
                 }
 
             }

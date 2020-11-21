@@ -5,7 +5,7 @@
 
 struct program_vars_t{
     pid_t traced_program_id;
-    char traced_program_name[POS_SIZE];
+    char traced_program_name[COMMAND_SIZE];
     int traced_program_type;
 
     unsigned long traced_function_size;

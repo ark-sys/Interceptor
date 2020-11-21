@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(errCode));
         return errCode;
     } else {
-        fprintf(stdout, "\nFunction size: %lu bytes.\n", program_vars.traced_function_size);
+        fprintf(stdout, "\n<%s>> size: %lu bytes.\n\n",argv[2], program_vars.traced_function_size);
     }
 
     unsigned long long addr_func_to_call;
@@ -53,10 +53,17 @@ int main(int argc, char *argv[]) {
     } else {
         addr_func_to_call = addr_func_to_call + program_vars.program_start_address;
     }
-    /*
-     * START OPERATIONS ON CURRENT PID
-     */
+    
 
+    
+    /*
+     * 
+     * 
+     * START OPERATIONS ON CURRENT PID
+     * 
+     * 
+     *
+     */
     int wait_status;
 
     if(ptrace(PTRACE_ATTACH, program_vars.traced_program_id, NULL, NULL) < 0){
@@ -73,83 +80,174 @@ int main(int argc, char *argv[]) {
 
 //#todo sanity check and conversion on value here before we pass it to functions
 
-//            if (strcmp("func2", argv[3]) == 0) {
-//                errCode = call_function_val(program_vars, addr_func_to_call, argv[4]);
-//                if (errCode != NO_ERROR) {
-//                    fprintf(stderr, "%s\n", "Failed to call func2.");
-//                }
-//            } else if (strcmp("func3", argv[3]) == 0) {
-//                errCode = call_function_ref(program_vars, addr_func_to_call, argv[4]);
-//                if (errCode != NO_ERROR) {
-//                    fprintf(stderr, "%s\n", "Failed to call func2.");
-//                }
-//            } else {
-//
-//                fprintf(stderr, "Function not found at line %d.", __LINE__);
-//            }
+            if (strcmp("func2", argv[3]) == 0) {
+                errCode = call_function_val(program_vars, addr_func_to_call, argv[4]);
+                if (errCode != NO_ERROR) {
+                    fprintf(stderr, "%s\n", "Failed to call func2.");
+                }
+            } else if (strcmp("func3", argv[3]) == 0) {
+                errCode = call_function_ref(program_vars, addr_func_to_call, argv[4]);
+                if (errCode != NO_ERROR) {
+                    fprintf(stderr, "%s\n", "Failed to call func2.");
+                }
+            } else if(strcmp("func4", argv[3]) == 0) {
+
+                unsigned long long func4_address;
+                /* Look for the address of the target function in the binary dump */
+                errCode = get_function_offset(argv[0],argv[3], &func4_address);
+                if (errCode != NO_ERROR) {
+                    fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(errCode));
+                    return errCode;
+                } else {
+                }
+
+                fprintf(stdout, "\nFunction to inject <%s> at address: 0x%08llX\n", argv[3],func4_address);
+                unsigned long func4_size;
+                /* Retrieve the size of the function in memory  */
+                errCode = get_function_size(argv[0], func4_address, &func4_size);
+                if (errCode != NO_ERROR) {
+                    fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(errCode));
+                    return errCode;
+                } else {
+                    fprintf(stdout, "\n<%s> size: %lu bytes.\n\n",argv[3], func4_size);
+                }
+
+                /*
+                 * Addresses will be stored here
+                 * pms_address : posix_memalign address
+                 * address_to_region : address to newly allocated memory by posix_memalign
+                 * mp_address : mprotect address
+                 *
+                 * */
+                unsigned long long pma_address = 0;
+                unsigned long long address_to_region = 0;
+                unsigned long long mp_address = 0;
+                unsigned long long aligned_region;
+                /*
+                 * Look for the address of posix_memalign in the dynamically linked libc and store it in pma_address
+                 * */
+                errCode = get_libc_function_address(program_vars.traced_program_id, "posix_memalign", &pma_address);
+                if(errCode != NO_ERROR){
+                    fprintf(stderr, "%s: %s\n","Failed to get posix_memalign address.", ErrorCodetoString(errCode));
+                }else{
+                    /*
+                     * call posix_memalign from traced program and allocate 'func4_size' chunks of memory so we can write func4 instructions
+                     * New memory will be pointed by the address stored in address_to_region
+                     * */
+                    fprintf(stdout,"\nposix_memalign located at 0x%016llX\n", pma_address);
+                    errCode = call_posix_memalign(program_vars, pma_address, func4_size, 1024, &address_to_region);
+                    if (errCode != NO_ERROR){
+                        fprintf(stderr, "%s: %s\n", "Failed to call posix memalign.", ErrorCodetoString(errCode));
+                    } else {
+                        /*
+                         * Manualy align memory, work in progress
+                         * */
+                        aligned_region = address_to_region & ~((unsigned long long)(getpagesize()-1));
+                        /*
+                         * Look for the address of protect address in the dynamically liked libc and store it in mp_address
+                         * */
+                        errCode = get_libc_function_address(program_vars.traced_program_id, "mprotect", &mp_address);
+                        if(errCode != NO_ERROR){
+                            fprintf(stderr, "%s: %s\n","Failed to get posix_memalign address.", ErrorCodetoString(errCode));
+                        }else{
+                            /*
+                             * Call mprotect on the new memory created by the previous call of posix_memalign
+                             * mprotect will change protection flags if 'func4_size' chunks of memory starting from 'aligned_region'
+                             * New flags will allow execution on new allocated memory
+                             * */
+                            fprintf(stdout,"\nmprotect located at 0x%016llX\n", mp_address);
+                            errCode = call_mprotect(program_vars, mp_address, aligned_region, func4_size, (PROT_READ | PROT_WRITE | PROT_EXEC));
+                            if (errCode != NO_ERROR){
+                                fprintf(stderr, "mprotect: %s\n", ErrorCodetoString(errCode));
+                            } else {
+                                /*
+                                 * RECAP : At this point we have allocated some space in [heap] memory and given rwx flags to it
+                                 * So now we will fill this space in memory with the function that we want to execute
+                                 * func4 is located in this program, so in order to run it from the traced program we need to write its instructions in the traced [heap] memory
+                                 * */
+
+                                /*
+                                 * Create a buffer in which we will store func4 instructions
+                                 * */
+                                char * func4_buffer = malloc(sizeof(char)* func4_size);
+                                if (func4_buffer == NULL){
+                                    fprintf(stderr, "%s\n", "Failed to malloc buffer.");
+                                    errCode = NULL_POINTER;
+                                } else {
+                                    /*
+                                     * Fill the buffer with func4 instructions
+                                     * Since its in this program address space, we can access its address with &func4
+                                     * */
+                                    fprintf(stdout, "Reading <%s> instructions from %s\n","func4",argv[0]);
+                                    errCode = read_data(getpid(),(unsigned long long)&func4, func4_size, func4_buffer);
+                                    if(errCode != NO_ERROR){
+                                        fprintf(stderr, "%s\n", "Failed to read func4 data in buffer.");
+                                    }else{
+                                        /*
+                                         * Write the instructions in the traced [heap] memory
+                                         * */
+                                        fprintf(stdout, "Writing <%s> instructions to %s\n","func4",argv[1]);
+                                        errCode = write_data(program_vars.traced_program_id, aligned_region, func4_size, func4_buffer);
+                                        if(errCode != NO_ERROR){
+                                            fprintf(stderr, "%s\n", "Failed to write func4 data in heap.");
+                                        } else {
+                                            /*
+                                             * At this point we assume that instructions were correctly written
+                                             * So we can finally proceed by calling func4
+                                             * */
+                                            fprintf(stdout, "Preparing call to <%s>\n", "func4");
+                                            errCode = call_function_val(program_vars, aligned_region, argv[4]);
+                                            if(errCode != NO_ERROR){
+                                                fprintf(stderr, "%s <%s>\n", "Failed call to function", argv[4]);
+                                            }
+//                                call_function_ref(program_vars, address_to_region, argv[4]);
+
+                                        }
+                                    }
+                                    free(func4_buffer);
+
+                                }
+
+                            }
+                        }
+
+                    }
+                }
+
+                /*
+                 * Restore heap memory as it was before
+                 *
+                 * */
+                char * cleaning_buffer = malloc(sizeof(char) * func4_size);
+                if( cleaning_buffer == NULL ){
+                    fprintf(stderr, "%s\n","Failed to malloc cleaning buffer");
+                    errCode = NULL_POINTER;
+                } else {
+                    /* Fill the buffer with nothing */
+                    for(int i = 0; i<(int)func4_size; i++){
+                        cleaning_buffer[i] = 0x00;
+                    }
+
+                    /* Write the buffer at the location in heap where the injected function was written  */
+                    errCode = write_data(program_vars.traced_program_id, aligned_region, func4_size, cleaning_buffer);
+                    if(errCode != NO_ERROR){
+                        fprintf(stderr,"%s\n","Failed to write cleaning buffer");
+                    }else{
+                        /* Restore previous protection flags for allocated region in heap  */
+                        call_mprotect(program_vars, mp_address, aligned_region, func4_size, (PROT_READ | PROT_WRITE));
+                    }
+                    free(cleaning_buffer);
+                }
+
+            } else {
+                fprintf(stderr, "Function not found.");
+
+            }
 
         }
     }
 
-    unsigned long long func4_address;
-    /* Look for the address of the target function in the binary dump */
-    errCode = get_function_offset(argv[0],"func4", &func4_address);
-    if (errCode != NO_ERROR) {
-        fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(errCode));
-        return errCode;
-    } else {
-        fprintf(stdout, "\nFunction to inject <%s> at address: 0x%08llX\n", "func4",func4_address );
-    }
-    unsigned long func4_size;
-    /* Retrieve the size of the function in memory  */
-    errCode = get_function_size(argv[0], func4_address, &func4_size);
-    if (errCode != NO_ERROR) {
-        fprintf(stderr, "Error! line:%d:%s.\n", __LINE__, ErrorCodetoString(errCode));
-        return errCode;
-    } else {
-        fprintf(stdout, "\nFunction size: %lu bytes.\n", func4_size);
-    }
 
-    unsigned long long pma_address;
-    unsigned long long address_to_region = 0;
-    errCode = get_libc_function_address(program_vars.traced_program_id, "posix_memalign", &pma_address);
-    if(errCode != NO_ERROR){
-        fprintf(stderr, "%s: %s\n","Failed to get posix_memalign address.", ErrorCodetoString(errCode));
-    }else{
-        fprintf(stdout,"posix_memalign located at 0x%016llX\n", pma_address);
-        errCode = call_posix_memalign(program_vars, pma_address, func4_size, &address_to_region);
-        if (errCode != NO_ERROR){
-            fprintf(stderr, "%s: %s\n", "Failed to call posix memalign.", ErrorCodetoString(errCode));
-        }
-    }
-
-
-    unsigned long long mp_address;
-    errCode = get_libc_function_address(program_vars.traced_program_id, "mprotect", &mp_address);
-    if(errCode != NO_ERROR){
-        fprintf(stderr, "%s: %s\n","Failed to get posix_memalign address.", ErrorCodetoString(errCode));
-    }else{
-        fprintf(stdout,"mprotect located at 0x%016llX\n", mp_address);
-        errCode = call_mprotect(program_vars, mp_address, address_to_region, func4_size, (PROT_READ | PROT_WRITE | PROT_EXEC));
-        if (errCode != NO_ERROR){
-            fprintf(stderr, "%s: %s\n", "Failed to call posix memalign.", ErrorCodetoString(errCode));
-        }
-    }
-
-
-    char * func4_buffer = malloc(sizeof(char)* func4_size);
-    struct user_regs_struct backupregs;
-//    get_registers_backup(program_vars.traced_program_id, &backupregs);
-//    set_breakpoint(program_vars.traced_program_id,program_vars.traced_function_address);
-    read_data(getpid(),func4_address, func4_size, func4_buffer);
-    write_data(program_vars.traced_program_id, address_to_region, func4_size, func4_buffer);
-//    backupregs.rip = program_vars.traced_function_address;
-//    set_registers_backup(program_vars.traced_program_id, &backupregs);
-
-//    call_function_ref(program_vars, address_to_region, argv[4]);
-      call_function_val(program_vars, address_to_region, argv[4]);
-//    call_mprotect(program_vars, mp_address, address_to_region, 32, (PROT_READ | PROT_WRITE ));
-    free(func4_buffer);
     /*
      * END OF OPERATIONS
      * */

@@ -5,6 +5,7 @@ ErrorCode call_function_ref(struct program_vars_t program_vars, const unsigned l
     int wait_status;
 
     fprintf(stdout, "%s\n", "========================================= START OF INDIRECT CALL REF =========================================");
+    fprintf(stdout, "Function argument : %s\n", param);
 
     /* Read and do a backup of a certain amount of memory data that will be replaced by the indirect call instruction */
     errorCode = read_data(program_vars.traced_program_id, program_vars.traced_function_address, BUFFER_SIZE, program_vars.instruction_backup);
@@ -19,8 +20,7 @@ ErrorCode call_function_ref(struct program_vars_t program_vars, const unsigned l
         } else {
 
             /* Get a backup of all registers before we start operations */
-            errorCode = get_registers_backup(program_vars.traced_program_id, &program_vars.registers);
-            if (errorCode != NO_ERROR) {
+            if( ptrace(PTRACE_GETREGS, program_vars.traced_program_id,0,&program_vars.registers) < 0) {
                 fprintf(stderr, "%s\n", "Failed to get registers backup.");
             } else {
 
@@ -98,6 +98,9 @@ ErrorCode call_function_ref(struct program_vars_t program_vars, const unsigned l
 
                                             dump_registers(program_vars.traced_program_id);
 
+                                            fprintf(stdout, "\n%s\n", "Restoring traced program memory and registers from backup");
+
+
                                             /* Write the data to its previous location*/
                                             errorCode = write_data(program_vars.traced_program_id, program_vars.traced_function_address,
                                                                    BUFFER_SIZE, program_vars.instruction_backup);
@@ -109,8 +112,7 @@ ErrorCode call_function_ref(struct program_vars_t program_vars, const unsigned l
                                                 program_vars.registers.rdi = return_value;
                                                 program_vars.registers.rip = program_vars.traced_function_address;
                                                 /* restore registers state */
-                                                errorCode = set_registers_backup(program_vars.traced_program_id, &program_vars.registers);
-                                                if (errorCode != NO_ERROR) {
+                                                if( ptrace(PTRACE_SETREGS, program_vars.traced_program_id,0,&program_vars.registers) < 0) {
                                                     fprintf(stderr,"%s\n",
                                                             "Failed to recover registers backup.");
                                                 }
@@ -138,7 +140,7 @@ ErrorCode call_function_val(struct program_vars_t program_vars, const unsigned l
     int wait_status;
 
     fprintf(stdout, "%s\n", "========================================= START OF INDIRECT CALL VAL =========================================");
-
+    fprintf(stdout, "Function argument : %s\n", param);
     /* Read and do a backup of a certain amount of memory data that will be replaced by the indirect call instruction */
     errorCode = read_data(program_vars.traced_program_id, program_vars.traced_function_address, BUFFER_SIZE, program_vars.instruction_backup);
     if (errorCode != NO_ERROR) {
@@ -152,8 +154,7 @@ ErrorCode call_function_val(struct program_vars_t program_vars, const unsigned l
         } else {
 
             /* Get a backup of all registers before we start operations */
-            errorCode = get_registers_backup(program_vars.traced_program_id, &program_vars.registers);
-            if (errorCode != NO_ERROR) {
+            if( ptrace(PTRACE_GETREGS, program_vars.traced_program_id,0,&program_vars.registers) < 0) {
                 fprintf(stderr, "%s\n", "Failed to get registers backup.");
             } else {
 
@@ -225,6 +226,7 @@ ErrorCode call_function_val(struct program_vars_t program_vars, const unsigned l
                                             /* Pass the returned value from the called function to the traced function */
                                             dump_registers(program_vars.traced_program_id);
 
+                                            fprintf(stdout, "\n%s\n", "Restoring traced program memory and registers from backup");
                                             /* Write the data to its previous location*/
                                             errorCode = write_data(program_vars.traced_program_id, program_vars.traced_function_address, BUFFER_SIZE,
                                                                    program_vars.instruction_backup);
@@ -237,8 +239,7 @@ ErrorCode call_function_val(struct program_vars_t program_vars, const unsigned l
                                                 program_vars.registers.rdi = return_value;
 
                                                 /* restore registers state */
-                                                errorCode = set_registers_backup(program_vars.traced_program_id, &program_vars.registers);
-                                                if (errorCode != NO_ERROR) {
+                                                if( ptrace(PTRACE_SETREGS, program_vars.traced_program_id,0,&program_vars.registers) < 0) {
                                                     fprintf(stderr, "%s\n",
                                                             "Failed to recover registers backup.");
                                                 }
@@ -260,11 +261,12 @@ ErrorCode call_function_val(struct program_vars_t program_vars, const unsigned l
 
 ErrorCode
 call_posix_memalign(struct program_vars_t program_vars, const unsigned long long memalign_address, const size_t size,
-                    unsigned long long *address_to_region) {
+                    const size_t alignment, unsigned long long *address_to_region) {
     ErrorCode errorCode = NO_ERROR;
     int wait_status;
 
     fprintf(stdout, "%s\n", "========================================= START OF INDIRECT CALL MEMALIGN =========================================");
+    fprintf(stdout, "Size : %d\nAlignment : %d\n",(int)size, (int)alignment);
 
 
     /* Read and do a backup of a certain amount of memory data that will be replaced by the indirect call instruction */
@@ -280,8 +282,7 @@ call_posix_memalign(struct program_vars_t program_vars, const unsigned long long
         } else {
 
             /* Get a backup of all registers before we start operations */
-            errorCode = get_registers_backup(program_vars.traced_program_id, &program_vars.registers);
-            if (errorCode != NO_ERROR) {
+            if( ptrace(PTRACE_GETREGS, program_vars.traced_program_id,0,&program_vars.registers) < 0) {
                 fprintf(stderr, "%s\n", "Failed to get registers backup.");
             } else {
                 /* Look at the current data at rip */
@@ -289,7 +290,7 @@ call_posix_memalign(struct program_vars_t program_vars, const unsigned long long
                 dump_registers(program_vars.traced_program_id);
 
                 struct user_regs_struct regs;
-                fprintf(stdout, "Calling function at address 0x%08llX\n", memalign_address);
+                fprintf(stdout, "Preparing call to posix_memalign at address 0x%08llX\n\n", memalign_address);
                 /* Get current register state for the traced program */
                 if (ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs) < 0) {
                     errorCode = ERROR;
@@ -306,7 +307,7 @@ call_posix_memalign(struct program_vars_t program_vars, const unsigned long long
                     regs.rax = memalign_address;
                     regs.rip = program_vars.traced_function_address;
                     regs.rdi = regs.rsp - 32;
-                    regs.rsi = (unsigned long long) (512);
+                    regs.rsi = (unsigned long long) (alignment);
                     regs.rdx = (unsigned long long) (size);
 
                     /* Set new registers */
@@ -327,7 +328,7 @@ call_posix_memalign(struct program_vars_t program_vars, const unsigned long long
                                 fprintf(stderr, "%s\n", "Failed to resume execution of program.");
                                 errorCode = ERROR;
                             } else {
-
+                                fprintf(stdout,"%s\n","Executing...");
                                 /* Check if the program has actually continued*/
                                 if (program_vars.traced_program_id !=
                                     waitpid(program_vars.traced_program_id, &wait_status, WCONTINUED)) {
@@ -347,18 +348,15 @@ call_posix_memalign(struct program_vars_t program_vars, const unsigned long long
                                          * Here we have the address to the newly created region
                                          * */
                                         *address_to_region = regs.rdi;
-                                        fprintf(stdout, "\nNew region created at 0x%016llX\n", *address_to_region);
-
                                         unsigned long long return_value = regs.rax;
                                         fprintf(stdout, "\nReturned value for posix_memalign is %llu\n", return_value);
-
-                                        dump_registers(program_vars.traced_program_id);
 
                                         /* Check if the new address is located inside heap boundaries */
                                         errorCode = is_region_available(program_vars.traced_program_id, *address_to_region);
                                         if(errorCode != NO_ERROR){
                                             fprintf(stderr, "%s\n", "posix_memalign failure.");
                                         } else {
+                                            fprintf(stdout, "\n%s\n", "Restoring traced program memory and registers from backup");
                                             /* Write the data to its previous location*/
                                             errorCode = write_data(program_vars.traced_program_id, program_vars.traced_function_address, BUFFER_SIZE,
                                                                    program_vars.instruction_backup);
@@ -369,8 +367,7 @@ call_posix_memalign(struct program_vars_t program_vars, const unsigned long long
                                                 dump_registers(program_vars.traced_program_id);
                                                 program_vars.registers.rip = program_vars.traced_function_address;
                                                 /* restore registers state */
-                                                errorCode = set_registers_backup(program_vars.traced_program_id, &program_vars.registers);
-                                                if (errorCode != NO_ERROR) {
+                                                if( ptrace(PTRACE_SETREGS, program_vars.traced_program_id,0,&program_vars.registers) < 0) {
                                                     fprintf(stderr, "%s\n",
                                                             "Failed to recover registers backup.");
                                                 }
@@ -394,6 +391,8 @@ ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long 
     ErrorCode errorCode = NO_ERROR;
     int wait_status;
     fprintf(stdout, "%s\n", "========================================= START OF INDIRECT CALL MPROTECT =========================================");
+    fprintf(stdout, "Target : 0x%llX\nSize : %d\nProtections : %d\n",mem_region, (int)size, __prot);
+
     /* Read and do a backup of a certain amount of memory data that will be replaced by the indirect call instruction */
     errorCode = read_data(program_vars.traced_program_id, program_vars.traced_function_address, BUFFER_SIZE, program_vars.instruction_backup);
     if (errorCode != NO_ERROR) {
@@ -406,8 +405,7 @@ ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long 
             fprintf(stderr, "%s\n", "Failed to set breakpoint.");
         } else {
             /* Get a backup of all registers before we start operations */
-            errorCode = get_registers_backup(program_vars.traced_program_id, &program_vars.registers);
-            if (errorCode != NO_ERROR) {
+            if( ptrace(PTRACE_GETREGS, program_vars.traced_program_id,0,&program_vars.registers) < 0) {
                 fprintf(stderr, "%s\n", "Failed to get registers backup.");
             } else {
                 /* Look at the current data at rip */
@@ -415,7 +413,7 @@ ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long 
                 dump_registers(program_vars.traced_program_id);
 
                 struct user_regs_struct regs;
-                fprintf(stdout, "Calling function at address 0x%08llX\n", mprotect_address);
+                fprintf(stdout, "Preparing call to mprotect at address 0x%08llX\n", mprotect_address);
                 /* Get current register state for the traced program */
                 if (ptrace(PTRACE_GETREGS, program_vars.traced_program_id, NULL, &regs) < 0) {
                     errorCode = ERROR;
@@ -438,6 +436,10 @@ ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long 
                         fprintf(stderr, "%s\n", "Failed to set new registers");
                         errorCode = ERROR;
                     } else {
+
+                        fprintf(stdout, "%s\n", "Setting registers to ");
+                        dump_registers(program_vars.traced_program_id);
+
                         /* Open /proc/pid/mem so we can write the indirect call instruction followed by a breakpoint (so we can recover the return value from the called function) */
                         errorCode = write_data(program_vars.traced_program_id, program_vars.traced_function_address, sizeof(indirect_call),
                                                (char *) indirect_call);
@@ -452,6 +454,7 @@ ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long 
                                 fprintf(stderr, "%s\n", "Failed to resume execution of program.");
                                 errorCode = ERROR;
                             } else {
+                                fprintf(stdout,"%s\n", "Executing...");
 
                                 /* Check if the program has actually continued*/
                                 if (program_vars.traced_program_id !=
@@ -477,7 +480,7 @@ ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long 
                                             fprintf(stderr, "Failed to call mprotect on 0x%08llX\n", mem_region);
                                         } else {
                                             dump_registers(program_vars.traced_program_id);
-
+                                            fprintf(stdout, "\n%s\n", "Restoring traced program memory and registers from backup");
                                             /* Write the data to its previous location*/
                                             errorCode = write_data(program_vars.traced_program_id, program_vars.traced_function_address, BUFFER_SIZE,
                                                                    program_vars.instruction_backup);
@@ -488,8 +491,7 @@ ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long 
                                                 dump_registers(program_vars.traced_program_id);
                                                 /* restore registers state */
                                                 program_vars.registers.rip = program_vars.traced_function_address;
-                                                errorCode = set_registers_backup(program_vars.traced_program_id, &program_vars.registers);
-                                                if (errorCode != NO_ERROR) {
+                                                if( ptrace(PTRACE_SETREGS, program_vars.traced_program_id,0,&program_vars.registers) < 0) {
                                                     fprintf(stderr, "%s\n",
                                                             "Failed to recover registers backup.");
                                                 }
