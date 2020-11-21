@@ -48,6 +48,11 @@ You can also CTRL+C to exit cleanly (and print a funny message)
 
 e.g.: `./interceptor hello_there func1 func2 123`  or `./interceptor hello_there func1 func3 123`
     
+Available functions (to be called) :
+- func2 : located in the traced program memory, it will set the parameter value to 'hello_there' output. Parameter is passed by value.
+- func3 : same as above. Parameter is passed by reference.
+- func4 : located in interceptor's program memory, it will set the parameter value to 'hello_there' output. Parameter is passed by value
+ 
 Type `interceptor -h` or `interceptor --help` for help from terminal
 
 ##### If you are interested in how interceptor work I suggest you to read the [DESIGN.md](./DESIGN.md) file
