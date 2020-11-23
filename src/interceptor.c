@@ -3,6 +3,7 @@
 /* Structure needed to store variables used in different sections of the program */
 static struct program_vars_t program_vars;
 int func4 (int i){
+    i = i*2;
     return i;
 }
 
@@ -148,8 +149,7 @@ int main(int argc, char *argv[]) {
                 /*
                  * Look for the address of posix_memalign in the dynamically linked libc and store it in pma_address
                  * */
-                errCode = get_libc_function_address(program_vars.traced_program_id, program_vars.traced_program_type,
-                                                    program_vars.traced_program_name,
+                errCode = get_libc_function_address(program_vars,
                                                     &pma_address, "posix_memalign");
                 if(errCode != NO_ERROR){
                     fprintf(stderr, "%s: %s\n","Failed to get posix_memalign address.", ErrorCodetoString(errCode));
@@ -159,20 +159,22 @@ int main(int argc, char *argv[]) {
                      * New memory will be pointed by the address stored in address_to_region
                      * */
                     fprintf(stdout,"\nposix_memalign located at 0x%016llX\n", pma_address);
+                    /*
+                     *  sysconf(_SC_PAGESIZE)  -> portable version of getpagesize
+                     * */
                     errCode = call_posix_memalign(program_vars, pma_address, func4_size, 1024, &address_to_region);
                     if (errCode != NO_ERROR){
                         fprintf(stderr, "%s: %s\n", "Failed to call posix memalign.", ErrorCodetoString(errCode));
                     } else {
                         /*
-                         * Manualy align memory, work in progress
+                         * Manually align memory, work in progress
                          * */
                         aligned_region = address_to_region & ~((unsigned long long)(getpagesize()-1));
+//                        aligned_region = address_to_region;
                         /*
                          * Look for the address of protect address in the dynamically liked libc and store it in mp_address
                          * */
-                        errCode = get_libc_function_address(program_vars.traced_program_id,
-                                                            program_vars.traced_program_type,
-                                                            program_vars.traced_program_name, &mp_address, "mprotect");
+                        errCode = get_libc_function_address(program_vars, &mp_address, "mprotect");
                         if(errCode != NO_ERROR){
                             fprintf(stderr, "%s: %s\n","Failed to get posix_memalign address.", ErrorCodetoString(errCode));
                         }else{
@@ -186,85 +188,86 @@ int main(int argc, char *argv[]) {
                             if (errCode != NO_ERROR){
                                 fprintf(stderr, "mprotect: %s\n", ErrorCodetoString(errCode));
                             } else {
-                                /*
-                                 * RECAP : At this point we have allocated some space in [heap] memory and given rwx flags to it
-                                 * So now we will fill this space in memory with the function that we want to execute
-                                 * func4 is located in this program, so in order to run it from the traced program we need to write its instructions in the traced [heap] memory
-                                 * */
 
-                                /*
-                                 * Create a buffer in which we will store func4 instructions
-                                 * */
-                                char * func4_buffer = malloc(sizeof(char)* func4_size);
-                                if (func4_buffer == NULL){
-                                    fprintf(stderr, "%s\n", "Failed to malloc buffer.");
-                                    errCode = NULL_POINTER;
-                                } else {
+                                errCode = is_region_executable(program_vars.traced_program_id, aligned_region);
+                                if (errCode == NO_ERROR){
                                     /*
-                                     * Fill the buffer with func4 instructions
-                                     * Since its in this program address space, we can access its address with &func4
+                                     * RECAP : At this point we have allocated some space in [heap] memory and given rwx flags to it
+                                     * So now we will fill this space in memory with the function that we want to execute
+                                     * func4 is located in this program, so in order to run it from the traced program we need to write its instructions in the traced [heap] memory
                                      * */
-                                    fprintf(stdout, "Reading <%s> instructions from %s\n","func4",argv[0]);
-                                    errCode = read_data(getpid(),(unsigned long long)&func4, func4_size, func4_buffer);
-                                    if(errCode != NO_ERROR){
-                                        fprintf(stderr, "%s\n", "Failed to read func4 data in buffer.");
-                                    }else{
+
+                                    /*
+                                     * Create a buffer in which we will store func4 instructions
+                                     * */
+                                    unsigned char * func4_buffer = malloc(sizeof(unsigned char) * func4_size);
+                                    if (func4_buffer == NULL){
+                                        fprintf(stderr, "%s\n", "Failed to malloc buffer.");
+                                        errCode = NULL_POINTER;
+                                    } else {
                                         /*
-                                         * Write the instructions in the traced [heap] memory
+                                         * Fill the buffer with func4 instructions
+                                         * Since its in this program address space, we can access its address with &func4
                                          * */
-                                        fprintf(stdout, "Writing <%s> instructions to %s\n","func4",argv[1]);
-                                        errCode = write_data(program_vars.traced_program_id, aligned_region, func4_size, func4_buffer);
+                                        fprintf(stdout, "Reading <%s> instructions from %s\n","func4",argv[0]);
+                                        errCode = read_data(getpid(),(unsigned long long)&func4, func4_size, func4_buffer);
                                         if(errCode != NO_ERROR){
-                                            fprintf(stderr, "%s\n", "Failed to write func4 data in heap.");
-                                        } else {
+                                            fprintf(stderr, "%s\n", "Failed to read func4 data in buffer.");
+                                        }else{
                                             /*
-                                             * At this point we assume that instructions were correctly written
-                                             * So we can finally proceed by calling func4
+                                             * Write the instructions in the traced [heap] memory
                                              * */
-                                            fprintf(stdout, "Preparing call to <%s>\n", "func4");
-                                            errCode = call_function_val(program_vars, aligned_region, argv[4]);
+                                            fprintf(stdout, "Writing <%s> instructions to %s\n","func4",argv[1]);
+                                            errCode = write_data(program_vars.traced_program_id, aligned_region, func4_size, (const unsigned char*)func4_buffer);
                                             if(errCode != NO_ERROR){
-                                                fprintf(stderr, "%s <%s>\n", "Failed call to function", argv[4]);
-                                            }
+                                                fprintf(stderr, "%s\n", "Failed to write func4 data in heap.");
+                                            } else {
+
+                                                /*
+                                                 * At this point we assume that instructions were correctly written
+                                                 * So we can finally proceed by calling func4
+                                                 * */
+                                                fprintf(stdout, "Preparing call to <%s>\n", argv[4]);
+//                                            errCode = call_function_val(program_vars, aligned_region, argv[4]);
+                                                errCode = trampoline(program_vars, aligned_region, argv[4]);
+                                                if(errCode != NO_ERROR){
+                                                    fprintf(stderr, "%s <%s>\n", "Failed call to function", argv[4]);
+                                                }
+//                                                else {
+//                                                    /*
+//                                                     * Restore heap memory as it was before
+//                                                     * */
+//                                                    unsigned char * cleaning_buffer = malloc(sizeof(unsigned char) * func4_size);
+//                                                    if( cleaning_buffer == NULL ){
+//                                                        fprintf(stderr, "%s\n","Failed to malloc cleaning buffer");
+//                                                        errCode = NULL_POINTER;
+//                                                    } else {
+//                                                        /* Fill the buffer with nothing */
+//                                                        for(int i = 0; i<(int)func4_size; i++){
+//                                                            cleaning_buffer[i] = 0x00;
+//                                                        }
+//
+//                                                        /* Write the buffer at the location in heap where the injected function was written  */
+//                                                        errCode = write_data(program_vars.traced_program_id, aligned_region, func4_size, (const unsigned char *)cleaning_buffer);
+//                                                        if(errCode != NO_ERROR){
+//                                                            fprintf(stderr,"%s\n","Failed to write cleaning buffer");
+//                                                        }else{
+//                                                            /* Restore previous protection flags for allocated region in heap  */
+//                                                            call_mprotect(program_vars, mp_address, aligned_region, func4_size, (PROT_READ | PROT_WRITE));
+//                                                        }
+//                                                    }
+//                                                    free(cleaning_buffer);
+//                                                }
 //                                call_function_ref(program_vars, address_to_region, argv[4]);
-
+                                            }
                                         }
+                                        free(func4_buffer);
                                     }
-                                    free(func4_buffer);
-
                                 }
-
                             }
                         }
-
                     }
                 }
-
-                /*
-                 * Restore heap memory as it was before
-                 *
-                 * */
-                char * cleaning_buffer = malloc(sizeof(char) * func4_size);
-                if( cleaning_buffer == NULL ){
-                    fprintf(stderr, "%s\n","Failed to malloc cleaning buffer");
-                    errCode = NULL_POINTER;
-                } else {
-                    /* Fill the buffer with nothing */
-                    for(int i = 0; i<(int)func4_size; i++){
-                        cleaning_buffer[i] = 0x00;
-                    }
-
-                    /* Write the buffer at the location in heap where the injected function was written  */
-                    errCode = write_data(program_vars.traced_program_id, aligned_region, func4_size, cleaning_buffer);
-                    if(errCode != NO_ERROR){
-                        fprintf(stderr,"%s\n","Failed to write cleaning buffer");
-                    }else{
-                        /* Restore previous protection flags for allocated region in heap  */
-                        call_mprotect(program_vars, mp_address, aligned_region, func4_size, (PROT_READ | PROT_WRITE));
-                    }
-                    free(cleaning_buffer);
-                }
-
             } else {
                 fprintf(stderr, "Function not found.");
 

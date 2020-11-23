@@ -7,6 +7,8 @@ ErrorCode check_elf_type(const char * program_name, int * result) {
     ErrorCode errorCode = NO_ERROR;
 
     Elf64_Ehdr *ehdr;
+    Elf_Data data;
+    Elf_Scn * scan;
     Elf *elf;
     int fd;
 
@@ -28,6 +30,7 @@ ErrorCode check_elf_type(const char * program_name, int * result) {
                 errorCode = ERROR;
 
             } else {
+
                 switch (*result = ehdr->e_type) {
                     case ET_DYN:
                         fprintf(stdout, "DYN type detected.\n");
@@ -50,6 +53,17 @@ ErrorCode check_elf_type(const char * program_name, int * result) {
     return errorCode;
 }
 
+/*
+ * Check if libraries are linked dynamically, otherwise get_libc_function_address(...) to lok for address in the traced space address
+ * */
+ErrorCode is_DT_available(const char * program_name, int* result){
+    ErrorCode errorCode = NO_ERROR;
+
+
+
+
+    return errorCode;
+}
 
 /* Return the pid of a program. */
 ErrorCode get_pid(const char * argument_1, struct program_vars_t * program_vars)
@@ -222,8 +236,9 @@ ErrorCode get_program_startaddress(const pid_t traced_program_id, const char * t
     return errCode;
 }
 
+
 ErrorCode
-get_libc_function_address(const pid_t traced_program_id, const int traced_program_type, const char *traced_program_name,
+get_libc_function_address(const struct program_vars_t program_vars,
                           unsigned long long *function_address, const char *libc_function_name)
 {
 
@@ -239,13 +254,13 @@ get_libc_function_address(const pid_t traced_program_id, const int traced_progra
      * If traced program is statically linked, then all libraries are compiled within its addressing space
      * So we can fetch for libc address by simply looking at disassemble dump
      * */
-    if (traced_program_type == ET_EXEC){
+    if (program_vars.traced_program_type == ET_EXEC){
         /*
-         * This command will first retrieve the disassembler dump for the traced program
-         * Then we will look for the line that contains this pattern : 'name_of_the_function>:'
+         * This command will first retrieve the symbol tableo for the traced program
+         * Then we will look for the line that matches exactly the function that we need
          * From this line we will select the first that that corresponds to the libc function address in the traced program
          * */
-        snprintf(command, COMMAND_SIZE, "objdump -d %s | grep -w '.*%s>:' | cut -d \" \" -f1", traced_program_name, libc_function_name);
+        snprintf(command, COMMAND_SIZE, "objdump -t %s | grep -w '%s' | cut -d \" \" -f1", program_vars.traced_program_name, libc_function_name);
         /* Open the file and do some error checking */
         if ((command_fd = popen(command, "r")) == NULL) {
             perror("Failed to open command for PID %s");
@@ -272,16 +287,16 @@ get_libc_function_address(const pid_t traced_program_id, const int traced_progra
          * In this case libc is dynamically linked, we need to
          * First : get base address for libc in traced program memory
          * Second : get offset for the function that we are looking for in libc .so file
-         * Thirs : sum up there two addresses, this will be the final address that we will need if we want to call a libc function
+         * Third : sum up there two addresses, this will be the final address that we will need if we want to call a libc function
          *
          * */
-    if (traced_program_type == ET_DYN){
+    if (program_vars.traced_program_type == ET_DYN){
         char path_to_mem[POS_SIZE];
         unsigned long long libc_mem_baseaddress;
         FILE * program_maps_fd;
 
         /* Create the command that will get us the position of the beginning of the main during runtime */
-        snprintf(path_to_mem, POS_SIZE, "grep -E \'r-xp.*libc\' /proc/%d/maps", traced_program_id);
+        snprintf(path_to_mem, POS_SIZE, "grep -E \'r-xp.*libc\' /proc/%d/maps", program_vars.traced_program_id);
 
         /* Open the file and do some error checking */
         if(NULL == (program_maps_fd = popen(path_to_mem, "r")) ){

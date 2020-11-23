@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 
 #include <unistd.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -27,19 +28,20 @@
 
 /* #todo when everything is good, check if all macros are used */
 #define PID_SIZE 16
-#define FUNCTION_SIZE 64
+#define FUNCTION_SIZE 8
 #define POS_SIZE 64
 #define LINE_SIZE 128
 #define COMMAND_SIZE 256
-#define BUFFER_SIZE 4
+#define BUFFER_SIZE 16
 
 
 void print_usage(void);
 void dump_memory(const pid_t traced_program_id, const unsigned long start_address, const unsigned long nb_bytes);
 ErrorCode dump_registers(const pid_t traced_program_id);
-ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, char * output_buffer);
-ErrorCode write_data(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, const char * input_buffer);
-ErrorCode write_values(const pid_t traced_program_id, const unsigned long address_position, size_t data_length, const char *  input_buffer);
+ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_position, const size_t data_length, unsigned char * output_buffer);
+ErrorCode write_data(const pid_t traced_program_id,const unsigned long address_position, const size_t data_length, const unsigned char *input_buffer);
+void ul_to_bytarray(unsigned long address, unsigned char *output);
+void ull_to_bytarray(unsigned long long address, unsigned char *output);
 ErrorCode is_region_available(const pid_t traced_program_id, const unsigned long long region_address );
-
+ErrorCode is_region_executable(const pid_t traced_program_id, const unsigned long long region_address);
 #endif //COMMON_H
