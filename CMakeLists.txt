@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.0)
 
 project(interceptor)
 
@@ -17,6 +17,7 @@ include_directories(
         $(PROJECT_SOURCE_DIR)/includes/
 )
 
+# Set executable path to bin
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/)
 
 # Create binary executable for interceptor, this is the main for the tracer

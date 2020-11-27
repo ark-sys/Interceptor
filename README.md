@@ -23,7 +23,7 @@ Once we know the address of the functions and we have access to the memory file 
   
 The program will display every operations during runtime and live signals received by the tracee.
 
-You can also `echo $?` to check return value from interceptor (0 == NO ERROR)
+You can also `echo $?` to check return value from interceptor (0 == NO ERROR, check errorcodes.h for more error codes) 
 
 
 ## DOWNLOAD AND INSTALL INSTRUCTIONS:
@@ -44,15 +44,31 @@ This program will run endlessly and print and increment integers starting from 0
 You can also CTRL+C to exit cleanly (and print a funny message)
     
 - In Terminal 2, move to bin folder and follow command usage:    
-    - Command usage `./interceptor [binary file] [function to be traced] [function to be called] [parameter for the function to be called]`
+    - Command usage `Usage : ./interceptor <program_name> -f <function_name> <OPTION> <OPTION_PARAMETER>`
 
-e.g.: `./interceptor hello_there func1 func2 123`  or `./interceptor hello_there func1 func3 123`
+e.g.: `./interceptor hello_there -f func1 -i func2 -p 123`  or `./interceptor hello_there -f func1 -t 123` or `./interceptor hello_there -f func1 -at 123`
     
+    program_name: name of the binary elf that you want to trace.
+    function_name: name of the function that will be intercepted. (the one called in a loop into tracee)
+    
+            <OPTION> can be :
+                    -i <function_to_call> for indirect call.
+                            function_to_call: name of the function that will be indirectly called
+                                    By default, function will be called with argument passed by value.n
+                            add -r to call function with argument passed by reference
+                    -at for function injection + indirect call
+                            func4 will be injected in the tracee memory space and a single indirect call will be placed to it.
+                    -t for trampoline
+                            func4 will be injected in the tracee memory space and continuosly called due to the jump instruction.
+    
+            <OPTION_PARAMETER> Provide a parameter for either operation with
+                    -p <integer>
+
 Available functions (to be called) :
 - func2 : located in the traced program memory, it will set the parameter value to 'hello_there' output. Parameter is passed by value.
 - func3 : same as above. Parameter is passed by reference.
 - func4 : located in interceptor's program memory, it will set the parameter value to 'hello_there' output. Parameter is passed by value
  
-Type `interceptor -h` or `interceptor --help` for help from terminal
+Type `interceptor -h` for help from terminal
 
 ##### If you are interested in how interceptor work I suggest you to read the [DESIGN.md](./DESIGN.md) file
