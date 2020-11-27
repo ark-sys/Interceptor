@@ -1,5 +1,4 @@
 
-
 # WELCOME TO INTERCEPTOR
 
 A simple tracer based on ptrace and a little bit of libelf.
@@ -29,7 +28,7 @@ You can also `echo $?` to check return value from interceptor (0 == NO ERROR, ch
 
 (cmake is required for compilation)
 - From terminal type
-	- `clone git@gitlab.istic.univ-rennes1.fr:16012048/Interceptor.git`
+	- `git clone git@gitlab.istic.univ-rennes1.fr:16012048/Interceptor.git`
 	- `mkdir build ; cd build` 
         - `cmake .. ; make`
 
