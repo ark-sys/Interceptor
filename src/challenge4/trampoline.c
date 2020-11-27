@@ -57,7 +57,7 @@ ErrorCode trampoline(struct program_vars_t program_vars, const unsigned long lon
                         } else {
                             unsigned char convert_array[FUNCTION_SIZE];
 
-                            ull_to_bytarray(function_to_call, convert_array);
+                            ull_to_bytearray(function_to_call, convert_array);
                             errorCode = write_data(program_vars.traced_program_id, (program_vars.traced_function_address + sizeof(jump_instruction)), FUNCTION_SIZE,
                                        (const unsigned char *) convert_array);
                             if(errorCode != NO_ERROR){

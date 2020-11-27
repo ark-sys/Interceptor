@@ -10,7 +10,14 @@
 
 
 void print_usage(void){
-    fprintf(stderr, "%s\n", "Usage : ./interceptor [program_name] [function_name] [function_to_call] [param_for_function_to_call]");
+    fprintf(stderr, "%s\n\n", "Usage : ./interceptor <program_name> -f <function_name> <OPTION> <OPTION_PARAMETER>");
+    fprintf(stderr, "\t%s\n", "program_name: name of the binary elf that you want to trace.");
+    fprintf(stderr, "\t%s\n\n", "function_name: name of the function that will be intercepted. (the one called in a loop into tracee)");
+    fprintf(stderr, "\t%s\n\t\t%s\n", "<OPTION> can be :", "-i <function_to_call> for indirect call.\n\t\t\tfunction_to_call: name of the function that will be indirectly called\n\t\t\t\tBy default, function will be called with argument passed by value.n\n\t\t\tadd -r to call function with argument passed by reference");
+    fprintf(stderr, "\t\t%s\n", "-at for function injection + indirect call\n\t\t\tfunc4 will be injected in the tracee memory space and a single indirect call will be placed to it.");
+    fprintf(stderr, "\t\t%s\n", "-t for trampoline\n\t\t\tfunc4 will be injected in the tracee memory space and continuosly called due to the jump instruction.");
+
+    fprintf(stderr, "\n\t%s\n\t\t%s\n", "<OPTION_PARAMETER> Provide a parameter for either operation with", "-p <integer>");
 }
 
 
@@ -73,7 +80,6 @@ ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_p
     return errorCode;
 }
 
-//#todo fix write buffer
 ErrorCode write_data(const pid_t traced_program_id, unsigned long address_position, const size_t data_length, const unsigned char *input_buffer){
     ErrorCode errorCode = NO_ERROR;
     char path_to_mem[64];
@@ -124,7 +130,7 @@ void ul_to_bytarray(unsigned long address, unsigned char *output){
     fprintf(stdout,"Converted %lu to 0x%02X 0x%02X 0x%02X 0x%02X\n", address, output[0], output[1], output[2], output[3]);
 }
 
-void ull_to_bytarray(unsigned long long address, unsigned char *output){
+void ull_to_bytearray(unsigned long long address, unsigned char *output){
 
     output[0] = (unsigned char)((address) & 0xFF);
     output[1] = (unsigned char)((address >> 8) & 0xFF);
@@ -136,6 +142,26 @@ void ull_to_bytarray(unsigned long long address, unsigned char *output){
     output[7] = (unsigned char)((address >> 56) & 0xFF);
     fprintf(stdout,"Converted %llu to 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X\n", address, output[0], output[1], output[2], output[3], output[4], output[5], output[6], output[7]);
 }
+
+ErrorCode data_to_ull(pid_t traced_program_id, const unsigned long long address, unsigned long long * value){
+    ErrorCode errCode = NO_ERROR;
+
+    unsigned char buffer[FUNCTION_SIZE];
+    /* Read data from address position */
+    errCode = read_data(traced_program_id, address, sizeof(void*),buffer);
+    if(errCode != NO_ERROR){
+        fprintf(stderr, "%s\n", "Failed to read value from memory.");
+    } else {
+
+        if (memcpy(value, buffer, sizeof(unsigned long long)) == NULL){
+            errCode = NULL_POINTER;
+            fprintf(stderr,"%s\n", "Failed to recover value from memory.");
+        }
+
+    }
+    return errCode;
+}
+
 
 /*
  * Check if the new region created by posix_memalign has been correctly created in heap
