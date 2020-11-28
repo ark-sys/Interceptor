@@ -148,12 +148,12 @@ call_posix_memalign(struct program_vars_t program_vars, const unsigned long long
 }
 
 ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long long mprotect_address,
-                        const unsigned long long mem_region, const size_t size, const char __prot) {
+                        const unsigned long long mem_region, const size_t size, const char prot) {
     ErrorCode errorCode = NO_ERROR;
     int wait_status;
     fprintf(stdout, "%s\n",
             "========================================= START OF INDIRECT CALL MPROTECT =========================================");
-    fprintf(stdout, "Target : 0x%llX\nSize : %d\nProtections : %d\n", mem_region, (int) size, __prot);
+    fprintf(stdout, "Target : 0x%llX\nSize : %d\nProtections : %d\n", mem_region, (int) size, prot);
 
     /* Read and do a backup of a certain amount of memory data that will be replaced by the indirect call instruction */
     errorCode = read_data(program_vars.traced_program_id, program_vars.traced_function_address, BUFFER_SIZE,
@@ -192,7 +192,7 @@ ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long 
                     regs.rip = program_vars.traced_function_address;
                     regs.rdi = mem_region;
                     regs.rsi = (unsigned long long) (size);
-                    regs.rdx = (unsigned long long) (__prot);
+                    regs.rdx = (unsigned long long) (prot);
 
                     /* Set new registers */
                     if (ptrace(PTRACE_SETREGS, program_vars.traced_program_id, NULL, &regs) < 0) {

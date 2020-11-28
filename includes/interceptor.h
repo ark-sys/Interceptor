@@ -23,7 +23,7 @@ ErrorCode call_function_ref(struct program_vars_t program_vars, const unsigned l
 ErrorCode
 call_posix_memalign(struct program_vars_t program_vars, const unsigned long long memalign_address, const size_t size,
                     const size_t alignment, unsigned long long *address_to_region);
-ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long long mprotect_address, const unsigned long long mem_region, const size_t size, const char __prot);
+ErrorCode call_mprotect(struct program_vars_t program_vars, const unsigned long long mprotect_address, const unsigned long long mem_region, const size_t size, const char prot);
 ErrorCode clean_memory(const struct program_vars_t program_vars, const unsigned long long mp_address, unsigned long long address_to_region, size_t size);
 ErrorCode trampoline(struct program_vars_t program_vars, const unsigned long long function_to_call, const char *param);
 int func4 (int i);

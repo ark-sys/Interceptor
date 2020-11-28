@@ -1,5 +1,4 @@
 #include "elfscan.h"
-
 /*
  *
  * */
@@ -60,7 +59,7 @@ ErrorCode is_DT_available(const char *program_name, int *result) {
     char command[LINE_SIZE];
     char readline[LINE_SIZE];
     snprintf(command, LINE_SIZE, "objdump -TC %s | grep 'no symbols'", program_name);
-    FILE *command_1_fd = popen(command, "r");
+    FILE *command_1_fd;
 
     /* Check the command execution status */
     if ((command_1_fd = popen(command, "r")) == NULL) {
@@ -95,10 +94,10 @@ ErrorCode get_pid(const char *argument_1, struct program_vars_t *program_vars) {
 
     /* pgrep -c <program_name> , check how many instances of the program are running */
     snprintf(command, COMMAND_SIZE, "pgrep -c %s", argument_1);
-    command_1_fd = popen(command, "r");
+
 
     /* Check the command execution status */
-    if (command_1_fd == NULL) {
+    if ((command_1_fd = popen(command, "r")) == NULL) {
         perror("Failed to run command.");
         errCode = NULL_POINTER;
     } else {
@@ -148,18 +147,8 @@ ErrorCode get_pid(const char *argument_1, struct program_vars_t *program_vars) {
                                     errCode = NULL_POINTER;
                                     fprintf(stderr, "%s\n", "Failed to read path to executable.");
                                 } else {
-                                    /*
-                                     * #todo Find a better way to resolve this, traced_program_name always contains an empty char at the beginning of the buffer and that causes the call to function access() to fail
-                                     * Also, trailing '\n' causes errors on access()
-                                     * */
-//                                    snprintf(program_vars->traced_program_name, COMMAND_SIZE, "%s", buffer);
-                                    for (int i = 0; i < COMMAND_SIZE; i++) {
-                                        program_vars->traced_program_name[i] = buffer[i + 1];
-                                    }
-                                    /* Remove trailing '\n' from program name buffer */
-                                    program_vars->traced_program_name[strcspn(program_vars->traced_program_name,
-                                                                              "\r\n")] = 0;
 
+                                    sscanf(buffer, "%s", program_vars->traced_program_name);
                                     /* Check if the file is actually accessible */
                                     if (access(program_vars->traced_program_name, F_OK) != 0) {
                                         perror("Failed to access elf binary.");
@@ -272,11 +261,7 @@ get_libc_function_address(const struct program_vars_t program_vars,
     errCode = is_DT_available(program_vars.traced_program_name, &isdt);
     if (errCode != NO_ERROR){
         fprintf(stderr, "%s\n", "Failed to check if libraries are dynamically linked");
-    } else {
-
-
     }
-
     /*
      * If traced program is statically linked, then all libraries are compiled within its addressing space
      * So we can fetch for libc address by simply looking at disassemble dump
@@ -332,31 +317,23 @@ get_libc_function_address(const struct program_vars_t program_vars,
             errCode = NULL_POINTER;
         } else {
 
-            char readline2[LINE_SIZE];
             /* Recover the line that contains the address and path for the executable library */
             if (fgets(readline, LINE_SIZE, program_maps_fd) == NULL) {
                 perror("Failed to read maps file.");
                 errCode = NULL_POINTER;
             } else {
-                strcpy(readline2, readline);
-                /* We assume that no error has been made till here */
-                FILE *command_fd;
 
-                /* Remove trailing '\n' from readline buffer */
-                readline[strcspn(readline, "\r\n")] = 0;
+                /* libc_mem_baseaddress will contain start of address of libc in tracee memory.
+                 * buffer1 will contain the path to the .so used during program link
+                 * */
                 char buffer1[POS_SIZE];
-                unsigned long long tmp1;
-                char tmp2[POS_SIZE];
-                unsigned long long tmp3;
-                char tmp4[POS_SIZE];
-                int tmp5;
-//#todo change this ASAP
-                if (sscanf(readline, "%llx-%llx %s %llx %s %d %s", &libc_mem_baseaddress, &tmp1, tmp2, &tmp3, tmp4,
-                           &tmp5, buffer1) == EOF) {
+
+                if (sscanf(readline, "%llx-%*llx %*s %*llx %*s %*d %s", &libc_mem_baseaddress, buffer1) == EOF) {
                     perror("Failed to scan line.");
                     errCode = ERROR;
                 } else {
 
+                    /*  Convert libc address to unsigned long long*/
                     if (libc_mem_baseaddress == 0) {
                         errCode = ERROR;
                         fprintf(stderr, "%s\n", "Conversion of libc base address failed");
