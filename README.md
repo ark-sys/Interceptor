@@ -1,6 +1,4 @@
 
-
-
 # WELCOME TO INTERCEPTOR
 
 A simple tracer based on ptrace and a little bit of libelf.
@@ -30,14 +28,14 @@ You can also `echo $?` to check return value from interceptor (0 == NO ERROR, ch
 
 (cmake is required for compilation)
 - From terminal type
-	- `clone git@gitlab.istic.univ-rennes1.fr:16012048/Interceptor.git`
-	- `cd build`
-    - `cmake .. ; make`
+	- `git clone git@gitlab.istic.univ-rennes1.fr:16012048/Interceptor.git`
+	- `mkdir build ; cd build` 
+        - `cmake .. ; make`
 
 ### RUN INTERCEPTOR
 
 In order to check the program execution with the provided examples you will need two terminals.
-- In Terminal 1, move to bin folder and type
+- In Terminal 1, move to bin folder (inr root directory) and type
 	- `hello_there`
 	
 This program will run endlessly and print and increment integers starting from 0. 
