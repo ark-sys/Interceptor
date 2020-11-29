@@ -2,6 +2,10 @@
 #define INTERCEPTOR_ELFSCAN_H
 
 #include "common.h"
+// used for info fetching on elf header
+#include <libelf.h>
+// used for open
+#include <fcntl.h>
 
 struct program_vars_t{
     pid_t traced_program_id;

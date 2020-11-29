@@ -4,7 +4,6 @@ static struct program_vars_t program_vars;
 
 
 int main(int argc, char **argv){
- ErrorCode errorCode = NO_ERROR;
 
     printf("\e[1;1H\e[2J");
     if (argc != 3) {
@@ -12,7 +11,7 @@ int main(int argc, char **argv){
         return INVALID_ARGUMENT;
     }
 
-    ErrorCode errCode;
+    ErrorCode errCode = NO_ERROR;
     /* Get program name from argument_1, check for errors and store name in global struct */
     /* Get the PID of current instance of the program */
     errCode = get_pid(argv[1], &program_vars);
@@ -46,7 +45,7 @@ int main(int argc, char **argv){
             fprintf(stderr, "Error during PTRACE_ATTACH at line %d.\n", __LINE__);
         } else {
             /* Wait for all threads with __WALL */
-            if (thread_list[i] != waitpid(thread_list[i], &wait_status,0)){
+            if (thread_list[i] != waitpid((__pid_t) thread_list[i], &wait_status, 0)){
                 fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
             }else{
                 fprintf(stdout, "TID <%ld> got signal: %s\n", thread_list[i],
@@ -59,7 +58,7 @@ int main(int argc, char **argv){
 
 
     }
-    bp_light(program_vars.traced_program_id, program_vars.traced_function_address+24);
+    bpLight(program_vars.traced_program_id, program_vars.traced_function_address + 24);
 
 
     for(int i = 0; i< number_of_threads; i++){
@@ -70,7 +69,7 @@ int main(int argc, char **argv){
         ptrace(PTRACE_CONT, thread_list[i], NULL, NULL);
 
         /* Wait for all threads with __WALL */
-        if (thread_list[i] != waitpid(thread_list[i], &wait_status, WCONTINUED)){
+        if (thread_list[i] != waitpid((__pid_t) thread_list[i], &wait_status, WCONTINUED)){
             fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
         }else{
             fprintf(stdout, "TID <%ld> got signal: %s\n", thread_list[i],
@@ -91,5 +90,5 @@ int main(int argc, char **argv){
     } else {
         fprintf(stdout, "\nDetached from PID %d\n\n", program_vars.traced_program_id);
     }
-    return errorCode;
+    return errCode;
 }

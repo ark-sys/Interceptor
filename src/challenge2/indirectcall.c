@@ -18,7 +18,7 @@ call_function_val(struct program_vars_t program_vars, const unsigned long long f
     } else {
 
         /* Set a breakpoint at the beginning of the function so we can stop its execution */
-        errorCode = set_breakpoint(program_vars.traced_program_id, program_vars.traced_function_address);
+        errorCode = setBreakpoint(program_vars.traced_program_id, program_vars.traced_function_address);
         if (errorCode != NO_ERROR) {
             fprintf(stderr, "%s\n", "Failed to set breakpoint.");
         } else {
@@ -150,7 +150,7 @@ call_function_ref(struct program_vars_t program_vars, const unsigned long long f
     } else {
 
         /* Set a breakpoint at the beginning of the function so we can stop its execution */
-        errorCode = set_breakpoint(program_vars.traced_program_id, program_vars.traced_function_address);
+        errorCode = setBreakpoint(program_vars.traced_program_id, program_vars.traced_function_address);
         if (errorCode != NO_ERROR) {
             fprintf(stderr, "%s\n", "Failed to set breakpoint.");
         } else {

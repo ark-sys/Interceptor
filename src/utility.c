@@ -30,7 +30,7 @@ void dump_memory(pid_t traced_program_id, unsigned long start_address, unsigned 
     fprintf(stdout, "===== MEMORY DUMP =====\n");
     read_data(traced_program_id,start_address, nb_bytes,output_buffer);
     for(int i = 0; i < (int)nb_bytes; i = i+4){
-        fprintf(stdout, "0x%08lX : 0x%02X 0x%02X 0x%02X 0x%02X\n", (start_address+i), (unsigned char)output_buffer[i], (unsigned char)output_buffer[i+1], (unsigned char)output_buffer[i+2], (unsigned char)output_buffer[i+3]);
+        fprintf(stdout, "0x%08lX : 0x%02X 0x%02X 0x%02X 0x%02X\n", (start_address+i), output_buffer[i], output_buffer[i+1], output_buffer[i+2], output_buffer[i+3]);
     }
     fprintf(stdout,   "=======================\n\n");
     free(output_buffer);
@@ -99,7 +99,7 @@ ErrorCode write_data(const pid_t traced_program_id, unsigned long address_positi
             /* Just a print message to see what we are writing */
             fprintf(stdout,"%s", "Writing ");
             for(int i = 0; i < (int)data_length; i++){
-                fprintf(stdout,"0x%02X ",(unsigned char)input_buffer[i]);
+                fprintf(stdout,"0x%02X ", input_buffer[i]);
             }
             fprintf(stdout, "at address 0x%08lX.\n", address_position);
             if(fwrite(input_buffer, data_length*sizeof(char),1, mem_file_fd) == 0){

@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
      * mode == 0 -> running indirect call
      * mode == 1 -> running trampoline
      * */
-    int mode;
+    int mode = 0;
 
     /*
      * Type of indirect call (default) 0 -> call by value
@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
                 strcpy(param, optarg);
                 break;
             case '?':
-                if ((optopt == 't') || (optopt == 'i') || (optopt == 'p')) {
+                if ((optopt == 'f') || (optopt == 'i') || (optopt == 'p')) {
                     fprintf(stderr, "Option -%c requires an argument.\n", optopt);
                 } else if (isprint(optopt)) {
                     fprintf(stderr, "Unknown option `-%c'.\n", optopt);
@@ -134,6 +134,7 @@ int main(int argc, char *argv[]) {
     unsigned long long address_to_region = 0;
     unsigned long long mp_address = 0;
 
+    fprintf(stdout, "mode %d, type %d\n", mode, type_ic);
     /* Running program for indirect call, here we fetch for useful information before attaching to PID */
     if (mode == 0) {
 
@@ -234,12 +235,12 @@ int main(int argc, char *argv[]) {
                 /*
                  * For mode 1, the program will allocate some excutable memory in tracee (with posix_memalign + mprotect ), inject a function in tracee new memory and set a jump to this function
                  * */
-            if (mode == 1) {
+            {
                 /*
                  * call posix_memalign from traced program and allocate 'func4_size' chunks of memory so we can write func4 instructions
                  * New memory will be pointed by the address stored in address_to_region
                  * */
-                errCode = call_posix_memalign(program_vars, pma_address, func4_size, getpagesize(), &address_to_region);
+                errCode = call_posix_memalign(program_vars, pma_address, func4_size, (const size_t) getpagesize(), &address_to_region);
                 if (errCode != NO_ERROR) {
                     fprintf(stderr, "%s: %s\n", "Failed to call posix memalign.", ErrorCodetoString(errCode));
                 } else {
@@ -298,7 +299,7 @@ int main(int argc, char *argv[]) {
                                     } else {
 
 
-                                        if (type_ic == 2){
+                                        if (type_ic == 2) {
                                             /*
                                             * At this point we assume that instructions were correctly written
                                             * So we can finally proceed by calling the function by value
@@ -309,11 +310,14 @@ int main(int argc, char *argv[]) {
                                             fprintf(stdout, "Preparing call to <%s>\n", function_to_call);
                                             errCode = call_function_val(program_vars, address_to_region, param);
                                             if (errCode != NO_ERROR) {
-                                                fprintf(stderr, "%s <%s>\n", "Failed call to function", function_to_call);
+                                                fprintf(stderr, "%s <%s>\n", "Failed call to function",
+                                                        function_to_call);
                                             } else {
-                                                errCode = clean_memory(program_vars, mp_address, address_to_region, func4_size);
+                                                errCode = clean_memory(program_vars, mp_address, address_to_region,
+                                                                       func4_size);
                                                 if (errCode != NO_ERROR) {
-                                                    fprintf(stderr, "%s <%llu>\n", "Failed clean memory at", address_to_region);
+                                                    fprintf(stderr, "%s <%llu>\n", "Failed clean memory at",
+                                                            address_to_region);
                                                 }
                                             }
                                         } else {
@@ -327,7 +331,8 @@ int main(int argc, char *argv[]) {
                                             fprintf(stdout, "Preparing call to <%s>\n", function_to_call);
                                             errCode = trampoline(program_vars, address_to_region, param);
                                             if (errCode != NO_ERROR) {
-                                                fprintf(stderr, "%s <%s>\n", "Failed call to function", function_to_call);
+                                                fprintf(stderr, "%s <%s>\n", "Failed call to function",
+                                                        function_to_call);
                                             }
                                         }
                                     }

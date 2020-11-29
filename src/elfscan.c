@@ -126,7 +126,7 @@ ErrorCode get_pid(const char *argument_1, struct program_vars_t *program_vars) {
                         errCode = NULL_POINTER;
                     } else {
                         /* The PID is converted and stored in a global structure for later use */
-                        if ((program_vars->traced_program_id = strtol(pid_buffer, NULL, 10)) == 0) {
+                        if ((program_vars->traced_program_id = (pid_t) strtol(pid_buffer, NULL, 10)) == 0) {
                             errCode = ERROR;
                             fprintf(stderr, "%s\n", "Failed to convert PID from char * to pid_t.");
                         } else {
@@ -328,7 +328,7 @@ get_libc_function_address(const struct program_vars_t program_vars,
                  * */
                 char buffer1[POS_SIZE];
 
-                if (sscanf(readline, "%llx-%*llx %*s %*llx %*s %*d %s", &libc_mem_baseaddress, buffer1) == EOF) {
+                if (sscanf(readline, "%llx-%*x %*s %*x %*s %*d %s", &libc_mem_baseaddress, buffer1) == EOF) {
                     perror("Failed to scan line.");
                     errCode = ERROR;
                 } else {

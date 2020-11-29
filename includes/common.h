@@ -1,28 +1,26 @@
 #ifndef INTERCEPTOR_COMMON_H
 #define INTERCEPTOR_COMMON_H
 
+// ptrace
 #include <sys/ptrace.h>
+// size_t, pid_t, pthread types
 #include <sys/types.h>
-#include <sys/wait.h>
+// user struct regs
 #include <sys/user.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <fcntl.h>
-#include <arpa/inet.h>
-#include <ctype.h>
 
+// read, write, files, stdout and other standard stuff
 #include <unistd.h>
-#include <stdarg.h>
+// malloc, free, strttoull
 #include <stdlib.h>
+// fread, fwrite, scanf, sscanf
 #include <stdio.h>
+// strcpy, strcmp
 #include <string.h>
-#include <math.h>
-#include <libelf.h>
 
+// int types and sizes
 #include <stdint.h>
+// boolean from int
 #include <stdbool.h>
-#include <string.h>
-#include <getopt.h>
 
 #include "errorcodes.h"
 
@@ -44,6 +42,6 @@ void ul_to_bytarray(unsigned long address, unsigned char *output);
 void ull_to_bytearray(unsigned long long address, unsigned char *output);
 ErrorCode data_to_ull(pid_t traced_program_id, const unsigned long long address, unsigned long long * value);
 
-ErrorCode is_region_available(const pid_t traced_program_id, const unsigned long long region_address );
+ErrorCode is_region_available(const pid_t traced_program_id, const unsigned long long region_address);
 ErrorCode is_region_executable(const pid_t traced_program_id, const unsigned long long region_address);
 #endif //COMMON_H
