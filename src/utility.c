@@ -10,14 +10,39 @@
 
 
 void print_usage(void){
-    fprintf(stderr, "%s\n\n", "Usage : ./interceptor <program_name> -f <function_name> <OPTION> <OPTION_PARAMETER>");
+    fprintf(stderr, "%s\n\n", "Usage : ./interceptor <program_name>  <OPTION> <function_name> <OPTION_PARAMETER>");
     fprintf(stderr, "\t%s\n", "program_name: name of the binary elf that you want to trace.");
-    fprintf(stderr, "\t%s\n\n", "function_name: name of the function that will be intercepted. (the one called in a loop into tracee)");
-    fprintf(stderr, "\t%s\n\t\t%s\n", "<OPTION> can be :", "-i <function_to_call> for indirect call.\n\t\t\tfunction_to_call: name of the function that will be indirectly called\n\t\t\t\tBy default, function will be called with argument passed by value.n\n\t\t\tadd -r to call function with argument passed by reference");
-    fprintf(stderr, "\t\t%s\n", "-at for function injection + indirect call\n\t\t\tfunc4 will be injected in the tracee memory space and a single indirect call will be placed to it.");
-    fprintf(stderr, "\t\t%s\n", "-t for trampoline\n\t\t\tfunc4 will be injected in the tracee memory space and continuosly called due to the jump instruction.");
+    fprintf(stderr, "\t%s\n\n", "function_name: name of the function that will be intercepted. (the one called in a loop into the tracee)");
+    fprintf(stderr, "\t%s\n\t\t%s\n", "<OPTION> can be :", "-i <function_name> <function_to_call> for indirect call.\n\t\t\tfunction_to_call: name of the function that will be indirectly called\n\n\t\t\tBy default, function will be called with argument passed by value.\n\t\t\tadd '-r' to call function with argument passed by reference\n");
+    fprintf(stderr, "\t\t%s\n", "-at <function_name> for function injection + indirect call\n\t\t\tfunc4 will be injected in the tracee memory space and a single indirect call will be placed to it.\n");
+    fprintf(stderr, "\t\t%s\n", "-t <function_name> for trampoline\n\t\t\tfunc4 will be injected in the tracee memory space and continuosly called due to the jump instruction.");
+    fprintf(stderr, "\n\t%s\n\t\t%s\n", "<OPTION_PARAMETER> Provide a parameter for either option with", "-p <integer>");
+}
 
-    fprintf(stderr, "\n\t%s\n\t\t%s\n", "<OPTION_PARAMETER> Provide a parameter for either operation with", "-p <integer>");
+/* Check if current buffer contains an integer */
+bool isnumber(char * input){
+    for(int i = 0; i<(int)strlen(input);i++){
+        if(!isdigit(input[i])){return false;}
+    }
+    return true;
+}
+
+/* Check if traced function is actually running */
+ErrorCode is_func_running(const pid_t traced_program_id, const unsigned long long traced_func_address, const unsigned long size){
+    ErrorCode  errorCode = NO_ERROR;
+    struct user_regs_struct registers;
+    if(ptrace(PTRACE_GETREGS, traced_program_id, NULL, &registers) <0){
+        errorCode = ERROR;
+    } else {
+        if((registers.rip >= traced_func_address) && (registers.rip < (traced_func_address + size))){
+            fprintf(stdout, "%s\n", "Traced function is currently running.");
+        } else{
+            errorCode = ERROR;
+            fprintf(stderr,"%s\n", "Traced function is not running.");
+        }
+    }
+
+    return errorCode;
 }
 
 
@@ -25,15 +50,25 @@ void print_usage(void){
  * This function will print current state of memory starting from the argument 'start_address' and will be showing 'nb_bytes'
  *
  * */
-void dump_memory(pid_t traced_program_id, unsigned long start_address, unsigned long nb_bytes){
-    unsigned char * output_buffer = malloc(sizeof(unsigned char) * nb_bytes);
-    fprintf(stdout, "===== MEMORY DUMP =====\n");
-    read_data(traced_program_id,start_address, nb_bytes,output_buffer);
-    for(int i = 0; i < (int)nb_bytes; i = i+4){
-        fprintf(stdout, "0x%08lX : 0x%02X 0x%02X 0x%02X 0x%02X\n", (start_address+i), output_buffer[i], output_buffer[i+1], output_buffer[i+2], output_buffer[i+3]);
+ErrorCode dump_memory(pid_t traced_program_id, unsigned long start_address, unsigned long nb_bytes){
+    ErrorCode errorCode = NO_ERROR;
+    unsigned char * output_buffer;
+    if((output_buffer = malloc(sizeof(unsigned char) * nb_bytes)) == NULL){
+        errorCode = NULL_POINTER;
+    } else{
+        errorCode = read_data(traced_program_id,start_address, nb_bytes,output_buffer);
+        if(errorCode != NO_ERROR){
+            fprintf(stderr, "%s\n", "Failed to read memery state.");
+        }else{
+            fprintf(stdout, "===== MEMORY DUMP =====\n");
+            for(int i = 0; i < (int)nb_bytes; i = i+4){
+                fprintf(stdout, "0x%08lX : 0x%02X 0x%02X 0x%02X 0x%02X\n", (start_address+i), output_buffer[i], output_buffer[i+1], output_buffer[i+2], output_buffer[i+3]);
+            }
+            fprintf(stdout,   "=======================\n\n");
+        }
+        free(output_buffer);
     }
-    fprintf(stdout,   "=======================\n\n");
-    free(output_buffer);
+    return errorCode;
 }
 
 ErrorCode dump_registers(pid_t traced_program_id){

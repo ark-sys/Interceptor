@@ -6,7 +6,6 @@
 
 // argument parse, and type verification
 #include <getopt.h>
-#include <ctype.h>
 // PROT flags for mprotect
 #include <sys/mman.h>
 // wait, waitpid, status signals
@@ -23,8 +22,11 @@ static const unsigned char jump_instruction[2] = {0x48, 0xB8};
 /* Endi instruction */
 static const unsigned char end_instruction[2] = {0xFF, 0xE0};
 
+
 ErrorCode setBreakpoint(const pid_t tracedProgramId, const unsigned long addressPosition);
 ErrorCode bpLight(const pid_t tracedProgramId, const unsigned long addressPosition);
+ErrorCode bp_first_regs(const pid_t tracedProgramId, const unsigned long addressPosition);
+
 ErrorCode call_function_val(struct program_vars_t program_vars, const unsigned long long function_to_call, const char *param);
 ErrorCode call_function_ref(struct program_vars_t program_vars, const unsigned long long function_to_call, const char *param);
 ErrorCode

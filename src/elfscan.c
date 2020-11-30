@@ -1,6 +1,6 @@
 #include "elfscan.h"
 /*
- *
+ *  Check if ELF has been compiled dynamically or statically
  * */
 ErrorCode check_elf_type(const char *program_name, int *result) {
     ErrorCode errorCode = NO_ERROR;

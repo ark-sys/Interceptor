@@ -21,6 +21,8 @@
 #include <stdint.h>
 // boolean from int
 #include <stdbool.h>
+// ctype for isdigit
+#include <ctype.h>
 
 #include "errorcodes.h"
 
@@ -32,7 +34,12 @@
 
 /* General use functions, in order to dump registers we must be attache to a program */
 void print_usage(void);
-void dump_memory(const pid_t traced_program_id, const unsigned long start_address, const unsigned long nb_bytes);
+
+bool isnumber(char * input);
+
+ErrorCode is_func_running(const pid_t traced_program_id, const unsigned long long traced_func_address, const unsigned long size);
+
+ErrorCode dump_memory(pid_t traced_program_id, unsigned long start_address, unsigned long nb_bytes);
 ErrorCode dump_registers(const pid_t traced_program_id);
 
 ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_position, const size_t data_length, unsigned char * output_buffer);

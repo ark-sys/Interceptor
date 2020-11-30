@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/mman.h>
 
 /* Prototypes declaration */
 int func1(int i);
