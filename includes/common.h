@@ -35,6 +35,7 @@
 /* General use functions, in order to dump registers we must be attache to a program */
 void print_usage(void);
 
+/* Check if input char is a valid number */
 bool isnumber(char * input);
 
 ErrorCode is_func_running(const pid_t traced_program_id, const unsigned long long traced_func_address, const unsigned long size);

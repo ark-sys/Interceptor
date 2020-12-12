@@ -70,7 +70,7 @@ call_function_val(struct program_vars_t program_vars, const unsigned long long f
                                 fprintf(stderr, "%s\n", "Failed to resume execution of program.");
                                 errorCode = ERROR;
                             } else {
-
+                                fprintf(stdout, "%s\n", "Executing...");
                                 /* Check if the program has actually continued*/
                                 if (program_vars.traced_program_id !=
                                     waitpid(program_vars.traced_program_id, &wait_status, WCONTINUED)) {

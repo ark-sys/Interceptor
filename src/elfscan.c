@@ -184,7 +184,6 @@ ErrorCode get_pid(const char *argument_1, struct program_vars_t *program_vars) {
                 fprintf(stdout,
                         "%ld instances of binary <%s> have been found.\n Please select which one you want to trace\n",
                         strtol(pid_buffer, NULL, 10), argument_1);
-                //#todo add prompt selection in case multiple instances have been found
                 errCode = ERROR;
             }
         } //END if on first fgets

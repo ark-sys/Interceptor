@@ -44,7 +44,7 @@ int main(int argc, char **argv){
         if(ptrace(PTRACE_ATTACH, thread_list[i], NULL, NULL) < 0){
             fprintf(stderr, "Error during PTRACE_ATTACH at line %d.\n", __LINE__);
         } else {
-            /* Wait for all threads with __WALL */
+            /* Wait for all threads */
             if (thread_list[i] != waitpid((__pid_t) thread_list[i], &wait_status, 0)){
                 fprintf(stderr, "Error waitpid at line %d\n", __LINE__);
             }else{

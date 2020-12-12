@@ -1,25 +1,28 @@
 cmake_minimum_required(VERSION 3.0)
 
+# Project name
 project(interceptor)
 
+# Verbose output
 set(CMAKE_VERBOSE_MAKEFILE on)
 
+# Look if thread, libc and libelf libraries are available in system
 find_package(Threads REQUIRED)
-
 set(CMAKE_USE_PTHREADS_INIT true)
 set(CMAKE_USE_PTHREADS_INIT ON)
 
+# Prepare sources and include for compilation
 set(SRCS src/utility.c src/challenge2/indirectcall.c src/challenge1/breakpoint.c src/elfscan.c src/interceptor.c src/challenge4/trampoline.c src/challenge3/memcache.c)
 set(SRCS_THREAD src/utility.c src/challenge2/indirectcall.c src/challenge1/breakpoint.c src/elfscan.c src/challenge5/interceptor_thread.c src/challenge4/trampoline.c src/challenge3/memcache.c src/challenge5/thread_helper.c includes/thread_helper.h)
 set(HEADERS includes/common.h includes/errorcodes.h includes/elfscan.h includes/interceptor.h)
 
+# Retrieve path for include directory
 include_directories(
         $(PROJECT_SOURCE_DIR)/includes/
 )
 
 # Set executable path to bin
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin/)
-
 
 # Create binary executable for interceptor, this is the main for the tracer
 add_executable(${PROJECT_NAME} ${SRCS} ${HEADERS})

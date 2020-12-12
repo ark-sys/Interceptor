@@ -105,7 +105,7 @@ ErrorCode read_data(const pid_t traced_program_id, const unsigned long address_p
         } else {
 
             /* Read data to buffer */
-            if(fread(output_buffer, sizeof(unsigned char)*data_length,1, mem_file_fd) == 0){
+            if(fread(output_buffer, sizeof(unsigned char),data_length, mem_file_fd) == 0){
                 perror("Failed to read data.");
                 errorCode = ERROR;
             }
@@ -137,7 +137,7 @@ ErrorCode write_data(const pid_t traced_program_id, unsigned long address_positi
                 fprintf(stdout,"0x%02X ", input_buffer[i]);
             }
             fprintf(stdout, "at address 0x%08lX.\n", address_position);
-            if(fwrite(input_buffer, data_length*sizeof(char),1, mem_file_fd) == 0){
+            if(fwrite(input_buffer, sizeof(unsigned char),data_length, mem_file_fd) == 0){
                 errorCode = ERROR;
                 perror("Failed to write data.");
             }

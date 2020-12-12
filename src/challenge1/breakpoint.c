@@ -187,6 +187,12 @@ ErrorCode bp_first_regs(const pid_t tracedProgramId, const unsigned long address
                     if (errorCode != NO_ERROR ){
                         fprintf(stderr, "%s\n","Failed to recover backup.");
                     }
+
+                    struct user_regs_struct regs;
+                    ptrace(PTRACE_GETREGS, tracedProgramId, NULL, &regs);
+                    regs.rip = addressPosition;
+                    ptrace(PTRACE_SETREGS, tracedProgramId, NULL, &regs);
+
                 } // End of waitpid section
 
 
