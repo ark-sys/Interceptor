@@ -199,17 +199,19 @@ ErrorCode get_pid(const char *argument_1, struct program_vars_t *program_vars) {
 ErrorCode get_program_startaddress(const pid_t traced_program_id, const char *traced_program_name,
                                    unsigned long long *program_start_address) {
     ErrorCode errCode = NO_ERROR;
-    char path_to_mem[POS_SIZE];
+    char path_to_mem[COMMAND_SIZE];
     FILE *program_maps_fd;
 
     /* Create the command that will get us the position of the beginning of the main during runtime
      *
      * grep command will parse the file looking for
-     * the line that contains the pattern '<program_name> and r-xp' (section where the executable functions of the program are located)
+     * the first mapping of '<program_name>' at file offset 0, where the ELF header is loaded.
+     * Symbol values are relative to this address. Newer linkers put a read-only segment before
+     * the executable one (-z separate-code), so the r-xp mapping no longer starts at the base.
      * Once the line is found, it is piped to the cut commend that will split it in two parts (with the split happening at the first -)
      * We then take the first part that will correspond to the address that we are looking for
      * */
-    snprintf(path_to_mem, POS_SIZE, "grep -E \'r-xp.*%s\' /proc/%d/maps | cut -d \"-\" -f1", traced_program_name,
+    snprintf(path_to_mem, COMMAND_SIZE, "grep -m1 -E \' 00000000 .*%s\' /proc/%d/maps | cut -d \"-\" -f1", traced_program_name,
              traced_program_id);
 
     /* Open the file and do some error checking */
@@ -308,7 +310,7 @@ get_libc_function_address(const struct program_vars_t program_vars,
         FILE *program_maps_fd;
 
         /* Create the command that will get us the position of the beginning of the main during runtime */
-        snprintf(path_to_mem, POS_SIZE, "grep -E \'r-xp.*libc\' /proc/%d/maps", program_vars.traced_program_id);
+        snprintf(path_to_mem, POS_SIZE, "grep -m1 -E \' 00000000 .*libc\' /proc/%d/maps", program_vars.traced_program_id);
 
         /* Open the file and do some error checking */
         if (NULL == (program_maps_fd = popen(path_to_mem, "r"))) {
