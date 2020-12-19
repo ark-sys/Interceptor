@@ -1,14 +1,8 @@
-version: '3'
-
 services:
-  interceptor-testarea:
-    build: # use the Dockerfile in the current directory
-      context: .
-      dockerfile: Dockerfile
-    security_opt: # options needed for gdb debugging
-      - seccomp:unconfined
-      - apparmor:unconfined
-    container_name: dev
-    ports:
-      - "5555:22" # SSH
-      - "5556:7777" # GDB Server
+  interceptor:
+    build: .
+    # ptrace on a process that isn't a child of the tracer
+    cap_add:
+      - SYS_PTRACE
+    stdin_open: true
+    tty: true
